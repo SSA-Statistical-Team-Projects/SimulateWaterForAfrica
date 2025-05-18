@@ -13,7 +13,7 @@ get_gaez_restwo <- function(var,
                             irrigated = T,
                             dsn){
   
-  base_link <- "https://storage.cloud.google.com/fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET"
+  base_link <- "https://storage.googleapis.com/fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET"
   
   theme_var <- paste0("RES02", "-", var)
   
@@ -39,8 +39,9 @@ get_gaez_restwo <- function(var,
                             ".tif"),
                      sep = "/")
   
-  download_reader(dsn = dsn,
-                  url = full_link)
+  download.file(destfile = paste(dsn, basename(full_link), sep = "/"),
+                url = full_link,
+                mode = "wb")
   
 
 }
@@ -84,9 +85,9 @@ download_reader <- function(dsn,
   
   dict_dt <- download_dictionary()
   
-  opener_chr <- dict_dt[file_ext == tools::file_ext(temp_file), opener_function]
+  opener_chr <- dict_dt[file_ext == tools::file_ext(url), opener_function]
   
-  do.call(opener_chr, list(temp_file)) ->  raster_obj
+  do.call(opener_chr, paste(dsn, basename(url), sep = "/")) ->  raster_obj
   
   # raster_obj <- crop(raster_obj, extent(shp_dt))
   
