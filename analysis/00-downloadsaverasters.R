@@ -25,14 +25,14 @@ crop_list <- c("BARL", "MLLT", "MAIZ", "RICW", "SORG", "WHEA")
 lapply(X = crop_list,
        FUN = get_gaez_restwo,
        var = "YLD",
-       dsn = "data-raw/gaez")
+       dsn = "data-raw/gaez/rasters_raw")
 
 ##### then the non-irrigated
 lapply(X = crop_list,
        FUN = get_gaez_restwo,
        var = "YLD",
        irrigated = FALSE,
-       dsn = "data-raw/gaez")
+       dsn = "data-raw/gaez/rasters_raw")
 
 
 #### return the set of files in the KG2 folder
@@ -51,7 +51,7 @@ lapply(X = kg2url_list,
          x <- paste0("https://storage.googleapis.com/fao-gismgr-gaez-v5-data/",
                      x)
          
-         download.file(destfile = paste("data-raw/gaez", 
+         download.file(destfile = paste("data-raw/gaez/rasters_raw", 
                                         basename(x), 
                                         sep = "/"),
                        url = x,
@@ -71,7 +71,7 @@ lapply(X = pfrurl_list,
          x <- paste0("https://storage.googleapis.com/fao-gismgr-gaez-v5-data/",
                      x)
          
-         download.file(destfile = paste("data-raw/gaez", 
+         download.file(destfile = paste("data-raw/gaez/rasters_raw", 
                                         basename(x), 
                                         sep = "/"),
                        url = x,
@@ -112,14 +112,14 @@ grid_dt <-
 lapply(X = crop_list,
        FUN = get_gaez_restwo,
        var = "YLD",
-       dsn = "data-raw/gaez")
+       dsn = "data-raw/gaez/rasters_raw")
 
 ##### then the non-irrigated
 lapply(X = crop_list,
        FUN = get_gaez_restwo,
        var = "YLD",
        irrigated = FALSE,
-       dsn = "data-raw/gaez")
+       dsn = "data-raw/gaez/rasters_raw")
 
 
 
@@ -134,7 +134,7 @@ lapply(X = grid_dt,
            
            get_gaez_restwo(crop_code = x[["crop"]], 
                            var = x[["ind"]], 
-                           dsn = "data-raw/gaez")
+                           dsn = "data-raw/gaez/rasters_raw")
            
          }, error = function(e){
            
@@ -178,7 +178,7 @@ lapply(X = grid_dt,
            
            get_gaez_resfive(crop_code = x[["crop"]], 
                             var = x[["ind"]], 
-                            dsn = "data-raw/gaez")
+                            dsn = "data-raw/gaez/rasters_raw")
            
          }, error = function(e){
            
@@ -196,7 +196,7 @@ lapply(X = grid_dt,
            
            get_gaez_resfive(crop_code = x[["crop"]], 
                             var = x[["ind"]], 
-                            dsn = "data-raw/gaez",
+                            dsn = "data-raw/gaez/rasters_raw",
                             irrigated = FALSE)
            
          }, error = function(e){
@@ -239,7 +239,7 @@ lapply(X = grid_dt,
            get_gaez_ressix(crop_code = x[["crop"]], 
                            var = x[["ind"]], 
                            type = x[["type"]],
-                           dsn = "data-raw/gaez")
+                           dsn = "data-raw/gaez/rasters_raw")
            
          }, error = function(e){
            
