@@ -87,7 +87,7 @@ for (crop in crop_list) {
   
   }
   
-  crop_merged$crop_code <-  crop
+  crop_merged$crop_code <-  tolower(crop)
   
   if (identical(crop, crop_list[[1]])) {
     fin_df <- crop_merged 
@@ -96,7 +96,7 @@ for (crop in crop_list) {
                        crop_merged)
   }
   
-  rm(crop_merged)
+  rm(crop_merged,crop,var,typ)
   gc(reset = TRUE)
 }
 
@@ -121,12 +121,12 @@ rm(fin_df)
 # 
 # # Spatial join to assign country name
 # # Assuming the country shapefile has a field like `country_name`
-# ras_joined <- st_join(ras_sf, 
-#                       subs_afr_shp["ISO_A3"], 
+# ras_joined <- st_join(ras_sf,
+#                       subs_afr_shp[c("ISO_A3","WB_NAME")],
 #                       left = FALSE)
 # 
 # # Drop rows with no country match (if any remain)
-# ras_joined <- ras_joined %>% filter(!is.na(country_name))
+# ras_joined <- ras_joined %>% filter(!is.na(WB_NAME))
 # 
 # saveRDS(agg_unique_sf,paste0("data-clean/working_data/gaez/gaez_unique_grid_points.RDS"))
 # write.csv(agg_unique_sf,paste0("data-clean/working_data/gaez/gaez_unique_grid_points.csv"))
@@ -134,13 +134,158 @@ rm(fin_df)
 # 2.3 Controls
 #%%%%%%%%%%%%%%%%%%%%
 
-crop_list2 <- c("MZSI","RICW","WHEA")
-indicators2 <- c("CYL","WDE","ETA","TSC","FC2")
+crop_list2 <- c("MAIZ","RICW","WHEA")
+
+# RES02
+for (crop in crop_list2) {
+  for (var in c("CYL", "ETA", "FC2", "TSC", "WDE")) {
+    for (typ in c("I","R")) {
+      for(int in c("H","L")) {
+        
+        file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.RES02-",var,
+                               ".HP0120.AGERA5.HIST.",crop,".",int,typ,"LM",".tif")
+        
+        if (length(file_pattern) == 0) next
+        ras <- raster::stack(file_pattern)
+        ras <- crop(ras, extent(subs_afr_shp))
+        ras <- mask(ras, subs_afr_shp)
+        
+        df <- as.data.frame(ras, xy = TRUE) %>%
+          rename(longitude = x, latitude = y)
+        
+        var_name <- paste0(tolower(var), "_", 
+                           int, "_",
+                           ifelse(typ == "I", 
+                                  "irri",
+                                  "rainfed"))
+        
+        names(df)[names(df) == paste0("GAEZ.V5.RES02.",
+                                      var,".HP0120.AGERA5.HIST.",
+                                      crop,".",int,typ,"LM")] <- var_name
+        
+        
+        if (identical(var, "CYL") & identical(typ,"I") & int == "H") {
+          crop_merged <- df
+        } else { 
+          crop_merged = left_join(crop_merged,
+                                  df,
+                                  by = c("longitude", "latitude"))
+        }
+        rm(df,ras,file_pattern)
+        
+      }
+    }
+    
+  }
+  
+  crop_merged$crop_code <-  crop
+  
+  if (identical(crop, crop_list2[[1]])) {
+    finc_df <- crop_merged 
+  } else { 
+    finc_df = bind_rows(finc_df,
+                       crop_merged)
+  }
+  
+  rm(crop_merged,crop,var,typ,int)
+  gc(reset = TRUE)
+}
+
+finc_df <- finc_df %>%
+  dplyr::mutate(crop_code = case_when(crop_code == "MAIZ" ~ "mze",
+                                      crop_code == "RICW" ~ "rcw",
+                                      crop_code == "WHEA" ~ "whe",
+                                      TRUE ~ NA_character_))
+
+saveRDS(finc_df,
+        paste0("data-clean/gaez/gaez_controls_crop_2020.RDS"))
+rm(finc_df)
+
+# RES01
+
+for (var in c("LD1", "LGD","NDD","NDR", "RFM", "RI2", "RQ1", "RQ2", 
+              "RQ3", "RQ4", "WDE", "LGP")) {
+  
+  file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.RES01-",var,
+                         "-TS.2020.tif")
+  
+  if (length(file_pattern) == 0) next
+  ras <- raster::stack(file_pattern)
+  ras <- crop(ras, extent(subs_afr_shp))
+  ras <- mask(ras, subs_afr_shp)
+  
+  df <- as.data.frame(ras, xy = TRUE) %>%
+    rename(longitude = x, latitude = y)
+  
+  names(df)[names(df) == paste0("GAEZ.V5.RES01.",
+                                var,".TS.2020")] <- tolower(var)
+  
+  
+  if (identical(var, "LD1")) {
+    findf_g <- df
+  } else { 
+    findf_g = left_join(findf_g,
+                        df,
+                        by = c("longitude", "latitude"))
+  }
+  rm(df,ras,file_pattern, var_name, var)
+}
+
+saveRDS(findf_g,
+        paste0("data-clean/gaez/gaez_controls_2020.RDS"))
+
+# LR
+
+for (var in c(1:12)) {
+  
+  if(var <= 9) {
+    file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.LR-LCC.LC0",var,
+                           ".tif")
+    var <- paste0("0",var)
+  } else {
+    file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.LR-LCC.LC",var,
+                           ".tif")
+  }
+  
+  
+  if (length(file_pattern) == 0) next
+  ras <- raster::stack(file_pattern)
+  ras <- crop(ras, extent(subs_afr_shp))
+  ras <- mask(ras, subs_afr_shp)
+  
+  df <- as.data.frame(ras, xy = TRUE) %>%
+    rename(longitude = x, latitude = y)
+  
+  var_name <- case_when(var == "01" ~ "land_artif_surf_perc",
+                        var == "02" ~ "land_cropland_perc",
+                        var == "03" ~ "land_grassland_perc",
+                        var == "04" ~ "land_tree_cover_perc",
+                        var == "05" ~ "land_shrub_perc",
+                        var == "06" ~ "land_herbaceous_flooded_perc",
+                        var == "07" ~ "land_mangrove_perc",
+                        var == "08" ~ "land_sparse_veg_perc",
+                        var == "09" ~ "land_bare_perc",
+                        var == 10 ~ "land_perm_snow_perc",
+                        var == 11 ~ "land_water_perc",
+                        var == 12 ~ "land_crop_irri_equip_perc")
+  
+  names(df)[names(df) == paste0("GAEZ.V5.LR-LCC.LC",
+                                var)] <- var_name
+  
+  if(var == "01") {
+    findf_g2 <- df
+  } else {
+    findf_g2 = left_join(findf_g2,
+                         df,
+                         by = c("longitude", "latitude"))
+  }
+  
+  rm(df,ras,file_pattern, var_name, var)
+}
+
+
+saveRDS(findf_g2,
+        paste0("data-clean/gaez/gaez_controls_highres_2020.RDS"))
 
 
 
-ras <- raster::stack("data-raw/gaez/rasters_raw/GAEZ-V5.RES02-FC2.FP2140.GFDL-ESM4.SSP126.MAIZ.HILM.tif")
-ras <- crop(ras, extent(subs_afr_shp))
-ras <- mask(ras, subs_afr_shp)
-df <- as.data.frame(ras, xy = TRUE) %>%
-  rename(longitude = x, latitude = y)

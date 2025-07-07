@@ -308,7 +308,7 @@ lapply(X = 1:12,
 crop_list <- c("BRL", "MZE", "RCW", "SRG", "WHE", "MLT")
 
 param_grid <- 
-  expand.grid(var = c("SIX", "SUX", "SXX", "SCX"),
+  expand.grid(var = c("S1X", "SUX", "SXX", "SCX"),
               crop = crop_list, 
               water_supply = c("H", "L"),
               irr = c(TRUE, FALSE), 
