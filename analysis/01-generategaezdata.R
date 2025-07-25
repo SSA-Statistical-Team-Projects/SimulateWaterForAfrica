@@ -35,6 +35,9 @@ subs_afr_shp <- st_read("data-raw/shapefile/WB_Boundaries_GeoJSON_highres/WB_cou
 # which lead to coordinate mismatches
 st_crs(subs_afr_shp) <- crs(raster::stack("data-raw/gaez/rasters_raw/GAEZ-V5.RES06-YLD.MLT.WST.tif")) # or any sample GAEZ raster
 
+subs_afr_shp <- st_transform(subs_afr_shp, crs = crs(raster::stack("data-raw/gaez/rasters_raw/GAEZ-V5.RES06-YLD.MLT.WST.tif"))) # or any sample GAEZ raster
+subs_afr_shp <- st_buffer(subs_afr_shp, dist = 0.0001)  # ~11m buffer in WGS84 in case of any inconsistencies in the shapefiles
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # 2. Loading and Merging / Appending Data
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -101,35 +104,53 @@ for (crop in crop_list) {
 }
 
 saveRDS(fin_df,
-        paste0("data-clean/gaez/gaez_crop_2020.RDS"))
+        "data-clean/gaez/gaez_crop_2020.RDS")
 rm(fin_df)
 
 # 2.2 Generate a unique dataset
 #%%%%%%%%%%%%%%%%%%%%
 
-# # Build a Unique Dataset
-# # Constructing a set of unique points
-# ras <- raster::stack("data-raw/gaez/rasters_raw/GAEZ-V5.RES06-PRD.SRG.WSI.tif")
-# ras <- crop(ras, extent(subs_afr_shp))
-# ras <- mask(ras, subs_afr_shp)
-# 
-# # Convert raster to points (this will retain x, y, and raster value)
-# ras_points <- rasterToPoints(ras, spatial = TRUE)
-# 
-# # Convert raster points to `sf`
-# ras_sf <- st_as_sf(ras_points)
-# 
-# # Spatial join to assign country name
-# # Assuming the country shapefile has a field like `country_name`
-# ras_joined <- st_join(ras_sf,
-#                       subs_afr_shp[c("ISO_A3","WB_NAME")],
-#                       left = FALSE)
-# 
-# # Drop rows with no country match (if any remain)
-# ras_joined <- ras_joined %>% filter(!is.na(WB_NAME))
-# 
-# saveRDS(agg_unique_sf,paste0("data-clean/working_data/gaez/gaez_unique_grid_points.RDS"))
-# write.csv(agg_unique_sf,paste0("data-clean/working_data/gaez/gaez_unique_grid_points.csv"))
+unique_sf <- st_as_sf(fin_df %>%
+                        dplyr::distinct(longitude, latitude),
+                      coords = c("longitude", "latitude"),
+                      crs = st_crs(subs_afr_shp))
+
+# Spatial join to attach country name/attributes
+unique_sf <- st_join(unique_sf, subs_afr_shp, join = st_is_within_distance, dist = 0.0001) %>%
+  dplyr::filter(!is.na(NAME_EN))   # keep only matched points ## LOSING A LOT OF OBS HERE
+
+# Extract coordinates back into columns (for CSV export)
+unique_sf <- unique_sf %>%
+  dplyr::mutate(longitude = st_coordinates(.)[,1],
+                latitude = st_coordinates(.)[,2])
+
+# save as RDS for future R use
+saveRDS(unique_sf, 
+        "data-clean/working_data/gaez/gaez_unique_grid_points.RDS")
+
+# Extracting grid polygons for GAEZ
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+unique_sf <- readRDS("data-clean/working_data/gaez/gaez_unique_grid_points.RDS")
+
+ras <- raster::stack("data-raw/gaez/rasters_raw/GAEZ-V5.RES06-PRD.SRG.WSI.tif")
+st_crs(subs_afr_shp) <- st_crs(ras)
+ras <- crop(ras, extent(subs_afr_shp))
+ras <- mask(ras, subs_afr_shp)
+
+grid_polygon <- rasterToPolygons(ras,
+                                 dissolve = FALSE)
+
+grid_polygon <- sf::st_as_sf(grid_polygon)
+grid_polygon <- st_join(grid_polygon,
+                        unique_sf)
+
+grid_polygon <- grid_polygon %>%
+  dplyr::select(latitude, longitude)
+
+# saving the file as a shapefile
+st_write(grid_polygon,
+         "data-clean/working_data/gaez/grid_polygon/unique_grid_polygons.shp")
 
 # 2.3 Controls
 #%%%%%%%%%%%%%%%%%%%%
@@ -283,9 +304,20 @@ for (var in c(1:12)) {
   rm(df,ras,file_pattern, var_name, var)
 }
 
+# adding soil data in
+ras <- raster::stack("data-raw/gaez/rasters_raw/SOILFER.SLOPE-MED.tif")
+ras <- crop(ras, extent(subs_afr_shp))
+ras <- mask(ras, subs_afr_shp)
+
+df <- as.data.frame(ras, xy = TRUE) %>%
+  rename(longitude = x, latitude = y)
+findf_g2 <- left_join(findf_g2,
+                      df,
+                  by = c("latitude","longitude"))
+rm(ras,df)
 
 saveRDS(findf_g2,
         paste0("data-clean/gaez/gaez_controls_highres_2020.RDS"))
 
-
+rm(findf_g2)
 
