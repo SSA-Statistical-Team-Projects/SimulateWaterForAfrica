@@ -1,7 +1,7 @@
 rm(list=ls())
 gc(reset = TRUE)
 
-pacman::p_load("sf", "data.table", "raster", "haven", "units", "expss",
+pacman::p_load("doParallel","parallelMap","devtools","sf", "data.table", "raster", "haven", "units", "expss",
                "exactextractr","cropDemand", "expss")
 
 sf::sf_use_s2(FALSE)
@@ -176,10 +176,51 @@ crs(pop_raster) <- crs(intersect_dt)
 #                                                            y = intersect_dt,
 #                                                            fun = "sum")
 
+parallel_zonalstats <- function(x,
+                                y,
+                                fun,
+                                numCores){
+  
+  ### parallelization processing
+  numCores <- min(numCores, parallel::detectCores())
+  parallelMap::parallelLibrary("foreach")
+  parallelMap::parallelLibrary("raster")
+  parallelMap::parallelLibrary("sf")
+  parallelMap::parallelLibrary("exactextractr")
+  
+  doParallel::registerDoParallel(cores = numCores) ##initiate the number of cores to be used
+  
+  numparts <- ceiling(nrow(y) / numCores)
+  
+  y$part <- rep(1:numCores,
+                each = numparts,
+                length.out = nrow(y))
+  
+  y <- split(y, y$part)
+  
+  results_dt <-
+    foreach(i = 1:numCores) %dopar% {
+      
+      exactextractr::exact_extract(x = x,
+                                   y = y[[i]],
+                                   fun = fun)
+      
+      
+    }
+  
+  endCluster()
+  
+  results_dt <- unlist(results_dt)
+  
+  
+  return(results_dt)
+  
+}
+
 intersect_dt[["grid_pop"]] <- parallel_zonalstats(x = pop_raster,
                                                   y = intersect_dt,
                                                   fun = "sum",
-                                                  numCores = 30)
+                                                  numCores = 10)
 
 intersect_dt <- apply_labels(intersect_dt,
                              grid_pop = "2020 grid population from NASA EOG")
@@ -194,12 +235,12 @@ intersect_dt <- intersect_dt %>% st_cast("MULTIPOLYGON")
 
 
 ##write data to data-clean folder
-saveRDS(intersect_dt[,c("intgrid_id", "country_assignment", colnames(aqshp_dt),
+saveRDS(intersect_dt[,c("intgrid_id", "country_assignment", colnames(aqgrid_dt),
                         "WB_NAME", "REGION_WB", "WB_A3", "ISO_A3",
                         "POP_EST", "POP_YEAR", "GDP_MD_EST", "INCOME_GRP",
                         "int_resource", "int_resource_norm", "gw_recharge",
                         "ppt2022", "pet2022", "grid_pop"),],
-        "data-clean/world-bank-aquifer-data/aquifermasterpoly.RDS")
+        "data-clean/working_data/world-bank-aquifer-data/aquifermasterpoly.RDS")
 
 saveRDS(wateruse_dt, 
         "data-clean/working_data/wateruse.RDS")

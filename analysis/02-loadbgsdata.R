@@ -185,6 +185,8 @@ storage_df <- st_buffer(storage_df, dist = sqrt(450)*1000/sqrt(1.58), endCapStyl
 storage_df$area <- units::set_units(st_area(storage_df), "km^2")
 
 saveRDS(storage_df, "data-raw/BGS/bgs_storage.RDS")
+gc(reset = TRUE)
+Sys.sleep(90)
 
 ssa_shp <- read_sf("data-raw/shapefile/WB_Boundaries_GeoJSON_highres/WB_countries_Admin0.geojson")
 ssa_shp <- ssa_shp %>%
@@ -201,6 +203,8 @@ storage_df <- st_join(storage_df,
 # keeping SSA countries
 storage_df <- storage_df %>%
   dplyr::filter(!is.na(WB_NAME))
+
+gc(reset = TRUE)
 
 storage_df$bgs_area = st_area(storage_df)
 
@@ -223,8 +227,10 @@ storage_df <- storage_df %>%
                                                 na.rm = T) / 1000000000)
 
 write_xlsx(storage_df,
-           "data-clean/results/bgs/bgs_volume.xlsx")
+           "data-clean/working_data/bgs/country_bgs_volume.xlsx")
 
+rm(storage_df)
+gc(reset = TRUE)
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # 3. Recharge data
@@ -246,7 +252,7 @@ ssa_recharge_df <- as.data.frame(ssa_recharge_ras,
 # convert to sf
 ssa_recharge_df <- sf::st_as_sf(ssa_recharge_df,
                                 coords = c("x", "y"),
-                                crs = 4326,
+                                crs = st_crs(ssa_shp),
                                 agr = "constant")
 
 # matching to country names
@@ -261,11 +267,13 @@ ssa_recharge_df <- ssa_recharge_df %>%
   dplyr::summarise(mean_recharge = mean(Africa_recharge,na.rm = T))
 
 
-write_xlsx(ssa_recharge_df,
-           "data-clean/results/bgs/bgs_recharge_country.xlsx")
+write_xlsx(ssa_recharge_df %>%
+             as.data.frame() %>%
+             dplyr::select(-geometry),
+           "data-clean/working_data/bgs/bgs_recharge_country.xlsx")
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# 3. Depth to GW data
+# 4. Depth to GW data
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # computing mean depth by country
 
@@ -319,9 +327,4 @@ depth_c <- depth_df %>%
                                                 na.rm = T))
 
 write_xlsx(depth_c,
-           "data-clean/results/bgs/bgs_country_gwdepth.xlsx")
-
-
-
-
-
+           "data-clean/working_data/bgs/bgs_country_gwdepth.xlsx")

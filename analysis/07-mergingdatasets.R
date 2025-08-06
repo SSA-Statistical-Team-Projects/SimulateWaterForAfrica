@@ -6,6 +6,7 @@
 # This file will merge the GAEZ dataset with the aquifer dataset and the BGS dataset
 
 rm(list=ls())
+gc(reset = TRUE)
 
 # Loading Packages
 if(!require("pacman")) install.packages("pacman")
@@ -22,10 +23,7 @@ pacman::p_load(
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # GAEZ Data
-unique_df <- readRDS("data-clean/working_data/gaez/gaez_unique_grid_points.RDS")
-
-# unique_df <- unique_df %>%
-#   dplyr::arrange(longitude,latitude,srno)
+grid_polygon <- st_read("data-clean/working_data/gaez/grid_polygon/unique_grid_polygons.shp")
 
 # Aquifer Data
 aq_shp <- st_read("data-raw/world-bank-aquifer-data/aqtyp_dissolved.gpkg")
@@ -63,10 +61,8 @@ st_crs(aquifer_poly) <- st_crs(grid_polygon)
 
 # saving the file as a shapefile
 st_write(aquifer_poly,
-         "data-clean/working_data/aquifer_data/water_gp/grid_polygons/aquifer_grid_polygons.shp")
+         "data-clean/working_data/world-bank-aquifer-data/grid_polygons/aquifer_grid_polygons.shp")
 
-# Calculate centroids of grid polygons
-#grid_centroids <- st_centroid(grid_polygon)
 
 # joining the gaez grid and aquifer polygons
 joined_df <- st_join(aquifer_poly,grid_polygon)
@@ -86,7 +82,7 @@ joined_df_nondup = joined_df %>%
 # Create a separate data frame for non-duplicated grid polygons
 # this indicates that they had a perfect match with aquifer polygons
 saveRDS(joined_df_nondup,
-        "data-clean/working_data/aquifer_gaez_merge/aq_gaez_not_duplicated.RDS"
+        "data-clean/working_data/aquifer-gaez-merge/aq_gaez_not_duplicated.RDS"
 )
 
 grid_subset <- left_join(grid_polygon,
@@ -105,7 +101,7 @@ grid_subset <- grid_subset %>%
 dim(grid_subset)[1] + dim(joined_df_nondup)[1] == dim(grid_polygon)[1] # TRUE
 
 # Perform intersection only on the subset of boundary polygons
-# Iterate over subsets of gaez polygon data by breaking it into groups of 15000
+# Iterate over subsets of gaez polygon data by breaking it into groups of 2000
 # doing this in order to run the intersections faster
 lapply(1:51,
        function (x) {
@@ -126,7 +122,7 @@ lapply(1:51,
          
          # saving results
          saveRDS(intersection_result,
-                 paste0("data-clean/working_data/aquifer_gaez_merge/",
+                 paste0("data-clean/working_data/aquifer-gaez-merge/",
                         "aq_gaez_merge_boundary_",min,"_",max,".RDS"
                  )
          )
@@ -177,7 +173,7 @@ joined_df_nondup <- joined_df_nondup %>%
 # Create a separate data frame for non-duplicated grid polygons
 # this indicates that they had a perfect match with aquifer polygons
 saveRDS(joined_df_nondup,
-        "data-clean/working_data/aquifer_gaez_merge/aq_gaez_analysis_not_duplicated.RDS"
+        "data-clean/working_data/aquifer-gaez-merge/aq_gaez_analysis_not_duplicated.RDS"
 )
 
 
@@ -191,7 +187,7 @@ for(x in c(1:51)) {
   max = min((x*2000),dim(grid_subset)[1])}
   
   # loading data
-  intersection_result <- readRDS(paste0("data-clean/working_data/aquifer_gaez_merge/",
+  intersection_result <- readRDS(paste0("data-clean/working_data/aquifer-gaez-merge/",
                                         "aq_gaez_merge_boundary_",
                                         min,"_",max,".RDS"))
   
@@ -234,7 +230,7 @@ for(x in c(1:51)) {
 }
 
 saveRDS(joined_df_dup,
-        "data-clean/working_data/aquifer_gaez_merge/aq_gaez_duplicated.RDS"
+        "data-clean/working_data/aquifer-gaez-merge/aq_gaez_duplicated.RDS"
 )
 
 
@@ -264,7 +260,7 @@ gaez_w_water <- bind_rows(joined_df_nondup %>%
 
 
 saveRDS(gaez_w_water,
-        "data-clean/working_data/aquifer_gaez_merge/aq_gaez_final_merged.RDS"
+        "data-clean/working_data/aquifer-gaez-merge/aq_gaez_final_merged.RDS"
 )
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -350,8 +346,6 @@ depth_df <- depth_df %>%
 #Joining with GAEZ grids
 st_crs(depth_df) <- st_crs(grid_polygon)
 
-#depth_df <- readRDS("data-clean/working_data/bgs/bgs_gwdepth.RDS")
-
 grid_gaez_depth_join <- st_join(grid_polygon %>%
                                   dplyr::select(srno,geometry),
                                 depth_df)
@@ -387,4 +381,3 @@ grid_polygon[["mean_recharge_mmyr"]] <- exact_extract(recharge_ras,
 saveRDS(grid_polygon,
         "data-clean/working_data/bgs/bgs_gaez_final_merged.RDS"
 )
-

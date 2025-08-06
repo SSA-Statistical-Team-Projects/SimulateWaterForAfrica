@@ -354,11 +354,35 @@ df <- as.data.frame(ras, xy = TRUE) %>%
 
 findf_g2 <- left_join(findf_g2,
                       df,
-                  by = c("latitude","longitude"))
+                      by = c("latitude","longitude"))
 rm(ras,df)
 
-saveRDS(findf_g2,
-        paste0("data-clean/gaez/gaez_controls_highres_2020.RDS"))
+#adding srno
+findf_sf <- st_as_sf(findf_g2, 
+                     coords = c("longitude", "latitude"), 
+                     crs = st_crs(unique_sf))
 
-rm(findf_g2, unique_sf)
+rm(findf_g2)
+gc(reset = TRUE)
+
+findf_joined <- st_join(findf_sf, 
+                        grid_polygon)
+
+rm(findf_sf)
+gc(reset = TRUE)
+
+# summarize by polygon
+findf_summary <- findf_joined %>%
+  st_drop_geometry() %>%   # drop point geometry to allow summarization
+  as.data.frame() %>%
+  dplyr::group_by(srno) %>%    # replace with your polygon identifier
+  dplyr::summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+findf_summary <- findf_summary %>%
+  dplyr::filter(!is.na(srno))
+
+saveRDS(findf_summary,
+        "data-clean/gaez/gaez_controls_highres_2020.RDS")
+
+rm(findf_summary, findf_joined, unique_sf)
 gc(reset = TRUE)

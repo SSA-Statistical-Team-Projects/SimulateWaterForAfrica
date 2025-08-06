@@ -1,2 +1,2 @@
-02 - still running.
-05 - to be run based on the previous files.
+
+08 - run 74 onwards. need to rename vars. issue is that earlier there was only one crop water deficit, now we know it for irrigated and rainfed crops. need to figure this out.
