@@ -33,20 +33,27 @@ intersect_dt$intersect_area <- st_area(intersect_dt, units = "m^2")
 
 ### include information on how much water is used for agricultural and non-agricultural use in African countries
 
-agwater_dt <- fread("data-raw/water-use/agricultural-water-withdrawals.csv")
-indwater_dt <- fread("data-raw/water-use/industrial-water-withdrawal.csv")
-hhwater_dt <- fread("data-raw/water-use/municipal-water-withdrawal.csv")
+agwater_dt <- fread("data-raw/water-use/agricultural-water-as-a-share-of-total-water-withdrawals.csv")
+indwater_dt <- fread("data-raw/water-use/industrial-water-as-a-share-of-total-water-withdrawals.csv")
+hhwater_dt <- fread("data-raw/water-use/municipal-water-as-a-share-of-total-water-withdrawals.csv")
+totwater_dt <- fread("data-raw/water-use/annual-freshwater-withdrawals.csv")
 
 wateruse_dt <- Reduce(dplyr::left_join, 
-                      list(hhwater_dt, agwater_dt, indwater_dt))
+                      list(hhwater_dt, agwater_dt, indwater_dt, totwater_dt))
 
 setnames(wateruse_dt,
-         c("Municipal water withdrawal",
-           "Agricultural water withdrawal",
-           "Industrial water withdrawal"),
-         c("hhwater_use", "agwater_use", "indwater_use"))
+         c("Annual freshwater withdrawals, domestic (% of total freshwater withdrawal)",
+           "Annual freshwater withdrawals, agriculture (% of total freshwater withdrawal)",
+           "Annual freshwater withdrawals, industry (% of total freshwater withdrawal)",
+           "Annual freshwater withdrawals, total (billion cubic meters)"),
+         c("hhwater_use_shr", "agwater_use_shr", "indwater_use_shr","tot_use_vol"))
 
-wateruse_dt[, total_use := hhwater_use + agwater_use + indwater_use]
+
+for(nm in c("agwater", "indwater", "hhwater")) {
+  
+  wateruse_dt[, (paste0(nm, "_use_vol")) := get(paste0(nm, "_use_shr"))* tot_use_vol]
+  
+}
 
 
 ### compute resource and change units for reference in aqshp_dt and intersect_dt

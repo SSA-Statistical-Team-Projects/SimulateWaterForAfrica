@@ -120,7 +120,7 @@ unique_sf$srno <- 1:nrow(unique_sf)
 unique_sf <- unique_sf %>%
   dplyr::mutate(longitude = st_coordinates(.)[,1],
                 latitude = st_coordinates(.)[,2]) %>%
-  dplyr::select(longitude,latitude,srno)
+  dplyr::select(c(longitude,latitude,srno, WB_NAME))
 
 # save as RDS for future R use
 saveRDS(unique_sf, 
@@ -166,7 +166,7 @@ fin_df <- fin_df %>%
 
 saveRDS(fin_df,
         "data-clean/gaez/gaez_crop_2020.RDS")
-rm(find_df)
+rm(fin_df)
 gc(reset = TRUE)
 
 # 2.3 Controls
@@ -239,7 +239,7 @@ finc_df <- finc_df %>%
 finc_df <- left_join(finc_df,
                      unique_sf %>% 
                        as.data.frame() %>%
-                       dplyr::select(-geometry),
+                       dplyr::select(-c(geometry,WB_NAME)),
                      by = c("latitude","longitude"))
 
 finc_df <- finc_df %>%
@@ -286,7 +286,7 @@ for (var in c("LD1", "LGD","NDD","NDR", "RFM", "RI2", "RQ1", "RQ2",
 findf_g <- left_join(findf_g,
                       unique_sf %>% 
                         as.data.frame() %>%
-                        dplyr::select(-geometry),
+                        dplyr::select(-c(geometry,WB_NAME)),
                       by = c("latitude","longitude"))
 
 findf_g <- findf_g %>%
