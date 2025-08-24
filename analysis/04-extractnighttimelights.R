@@ -4,7 +4,7 @@
 rm(list=ls())
 gc(reset = TRUE)
 
-pacman::p_load(sf, raster, exactextractr)
+pacman::p_load(sf, raster, exactextractr, dplyr)
 ### read in the grid polygon shapefile
 
 ### 1. Loading Data

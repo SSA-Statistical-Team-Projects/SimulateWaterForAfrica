@@ -72,6 +72,106 @@ crop_df <- crop_df %>%
                   growing_cycle_crop_water_def_mm_irri = wde_L_irri,
                   growing_cycle_crop_water_def_mm_rainfed = wde_L_rainfed))
 
+crop_df <- crop_df %>%
+  dplyr::mutate(only_rainfed = ifelse(har_tot > 0 &
+                                        har_rainfed > 0 &
+                                        (har_irri == 0 | is.na(har_irri)),
+                                      1,
+                                      0),
+                only_irri = ifelse(har_tot > 0 &
+                                     har_irri > 0 &
+                                     (har_rainfed == 0 | is.na(har_rainfed)),
+                                   1,
+                                   0),
+                both_irri_rain = ifelse(har_tot > 0 &
+                                          har_rainfed > 0 &
+                                          har_irri > 0,
+                                        1,
+                                        0),
+                none_irri_rain = ifelse(har_tot == 0 | is.na(har_tot),
+                                        1,
+                                        0)) 
+
+# statistics
+
+temp <- crop_df %>%
+  as.data.frame() %>%
+  dplyr::group_by(srno) %>%
+  dplyr::summarize(across(c("only_rainfed","only_irri","both_irri_rain","none_irri_rain"),
+                          ~ sum(.x, na.rm = TRUE))) %>%
+  dplyr::ungroup()  %>%
+  dplyr::rowwise() %>%
+  dplyr::mutate(any_irri = ifelse(sum(only_irri, both_irri_rain, na.rm = TRUE) > 0 , 1, 0),
+                is_cropland = ifelse(sum(only_rainfed, only_irri, both_irri_rain, na.rm = TRUE) > 0 , 1, 0)) %>%
+  dplyr::ungroup()
+
+any_irri_count = temp %>% dplyr::filter(any_irri == 1) %>% nrow()
+cropland_count = temp %>% dplyr::filter(is_cropland == 1) %>% nrow()
+
+# any irri share
+any_irri_count/cropland_count #10.5%
+
+#defining variables for comparison
+for (var in c("cyl","fc2","tsc","sux")) {
+  crop_df[[var]] <- ifelse(
+    crop_df$both_irri_rain == 1 | crop_df$only_irri == 1,
+    crop_df[[paste0(var, "_L_irri")]],
+    crop_df[[paste0(var, "_L_rainfed")]]
+  )
+  rm(var)
+}
+
+crop_df <- crop_df %>%
+  dplyr::mutate(eta = ifelse(both_irri_rain == 1 | only_irri == 1,
+                             crop_actual_evopot_mm_irri,
+                             crop_actual_evopot_mm_rainfed),
+                wde = ifelse(both_irri_rain == 1 | only_irri == 1,
+                             growing_cycle_crop_water_def_mm_irri,
+                             growing_cycle_crop_water_def_mm_rainfed))
+
+crop_df <- crop_df %>%
+  dplyr::rename(c(#grid_suit_o_vs_index = sx1,
+    #grid_suit_o_vs_Ms_index = sx2,
+    #grid_suit_o_vs_Ms_ms_index = sx3,
+    growing_cycl_crop_acc_temp_degCday = tsc, 
+    crop_actual_evopot_mm = eta,
+    length_crop_grwth_cycle_days = cyl,
+    growing_cycle_crop_water_def_mm = wde,
+    crop_yld_constraint_moisture = fc2,
+    growp_length_longest_comp_days = ld1,
+    growp_tot_days_number = lgd,
+    growp_longest_conseq_dry_days = ndd,
+    no_of_rain_days = ndr,
+    terrain_median_slp = SOILFER.SLOPE.MED,
+    land_artif_surf_perc = GAEZ.V5.LR.LCC.LC01,
+    land_cropland_perc = GAEZ.V5.LR.LCC.LC02,
+    land_grassland_perc = GAEZ.V5.LR.LCC.LC03,
+    land_tree_cover_perc = GAEZ.V5.LR.LCC.LC04,
+    land_shrub_perc = GAEZ.V5.LR.LCC.LC05,
+    land_herbaceous_flooded_perc = GAEZ.V5.LR.LCC.LC06,
+    land_mangrove_perc = GAEZ.V5.LR.LCC.LC07,
+    land_sparse_veg_perc = GAEZ.V5.LR.LCC.LC08,
+    land_bare_perc = GAEZ.V5.LR.LCC.LC09,
+    land_perm_snow_perc = GAEZ.V5.LR.LCC.LC10,
+    land_water_perc = GAEZ.V5.LR.LCC.LC11,
+    land_crop_irri_equip_perc = GAEZ.V5.LR.LCC.LC12,
+    mod_fournier_index_mm = rfm,
+    multi_cropping_class_irri = mci,
+    multi_cropping_class_rainfed = mcr,
+    crop_suitability = sux)) 
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Other Cleaning
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+# the dataset has four ways of defining crop suitability for the cropland, i will only keep one (=sux) to avoid duplication
+# similarly, getting rid of highly correlated moisture variables
+# and also dropping beginning date of longest component of growing cycle
+crop_df <- crop_df %>%
+  dplyr::select(-starts_with(c("six_","sxx_","scx_","rq","ri2","lgp"))) %>%
+  dplyr::select(-contains("_H_")) # dropping high-intensity inputs since most african farms have low intensity inputs
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Imputing Crop Water Demand
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

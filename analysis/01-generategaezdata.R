@@ -64,7 +64,7 @@ for (crop in crop_list) {
       ras <- mask(ras, subs_afr_shp)
       
       df <- as.data.frame(ras, xy = TRUE) %>%
-        rename(longitude = x, latitude = y)
+        dplyr::rename(c(longitude = x, latitude = y))
       
       var_name <- paste0(tolower(var), "_", 
                          ifelse(typ == "T", 
@@ -189,7 +189,7 @@ for (crop in crop_list2) {
         ras <- mask(ras, subs_afr_shp)
         
         df <- as.data.frame(ras, xy = TRUE) %>%
-          rename(longitude = x, latitude = y)
+          dplyr::rename(c(longitude = x, latitude = y))
         
         var_name <- paste0(tolower(var), "_", 
                            int, "_",
@@ -229,6 +229,73 @@ for (crop in crop_list2) {
   gc(reset = TRUE)
 }
 
+# RES05
+for (crop in crop_list) {
+  
+  if(crop == "RCW") { crop2 = "RICW"}
+  if(crop == "MZE") { crop2 = "MAIZ"}
+  if(crop == "WHE") { crop2 = "WHEA"}
+  
+  for (var in c("SUX","SXX","SIX","SCX")) {
+    for (typ in c("I","R")) {
+      for(int in c("H","L")) {
+        
+        file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.RES05-",var,
+                               ".HP0120.AGERA5.HIST.",crop,".",int,typ,"LM",".tif")
+        
+        if (length(file_pattern) == 0) next
+        ras <- raster::stack(file_pattern)
+        ras <- crop(ras, extent(subs_afr_shp))
+        ras <- mask(ras, subs_afr_shp)
+        
+        df <- as.data.frame(ras, xy = TRUE) %>%
+          dplyr::rename(c(longitude = x, latitude = y))
+        
+        var_name <- paste0(tolower(var), "_", 
+                           int, "_",
+                           ifelse(typ == "I", 
+                                  "irri",
+                                  "rainfed"))
+        
+        names(df)[names(df) == paste0("GAEZ.V5.RES05.",
+                                      var,".HP0120.AGERA5.HIST.",
+                                      crop,".",int,typ,"LM")] <- var_name
+        
+        
+        if (identical(var, "SUX") & identical(typ,"I") & int == "H") {
+          crop_merged <- df
+        } else { 
+          crop_merged = left_join(crop_merged,
+                                  df,
+                                  by = c("longitude", "latitude"))
+        }
+        rm(df,ras,file_pattern)
+        
+      }
+    }
+    
+  }
+  
+  crop_merged$crop_code <-  crop2
+  
+  if (identical(crop, crop_list[[1]])) {
+    res05_df <- crop_merged 
+  } else { 
+    res05_df = bind_rows(res05_df,
+                         crop_merged)
+  }
+  
+  rm(crop_merged,crop,crop2,var,typ,int)
+  gc(reset = TRUE)
+}
+
+finc_df <- left_join(finc_df,
+                     res05_df,
+                     by = c("latitude","longitude","crop_code"))
+
+rm(res05_df)
+gc(reset = TRUE)
+
 finc_df <- finc_df %>%
   dplyr::mutate(crop_code = case_when(crop_code == "MAIZ" ~ "mze",
                                       crop_code == "RICW" ~ "rcw",
@@ -253,7 +320,7 @@ gc(reset = TRUE)
 # RES01
 
 for (var in c("LD1", "LGD","NDD","NDR", "RFM", "RI2", "RQ1", "RQ2", 
-              "RQ3", "RQ4", "WDE", "LGP")) {
+              "RQ3", "RQ4", "WDE", "LGP","MCI","MCR")) {
   
   file_pattern <- paste0("data-raw/gaez/rasters_raw/GAEZ-V5.RES01-",var,
                          "-TS.2020.tif")
@@ -264,7 +331,7 @@ for (var in c("LD1", "LGD","NDD","NDR", "RFM", "RI2", "RQ1", "RQ2",
   ras <- mask(ras, subs_afr_shp)
   
   df <- as.data.frame(ras, xy = TRUE) %>%
-    rename(longitude = x, latitude = y)
+    dplyr::rename(c(longitude = x, latitude = y))
   
   names(df)[names(df) == paste0("GAEZ.V5.RES01.",
                                 var,".TS.2020")] <- tolower(var)
@@ -315,7 +382,7 @@ for (var in c(1:12)) {
   ras <- mask(ras, subs_afr_shp)
   
   df <- as.data.frame(ras, xy = TRUE) %>%
-    rename(longitude = x, latitude = y)
+    dplyr::rename(c(longitude = x, latitude = y))
   
   var_name <- case_when(var == "01" ~ "land_artif_surf_perc",
                         var == "02" ~ "land_cropland_perc",
@@ -350,7 +417,7 @@ ras <- crop(ras, extent(subs_afr_shp))
 ras <- mask(ras, subs_afr_shp)
 
 df <- as.data.frame(ras, xy = TRUE) %>%
-  rename(longitude = x, latitude = y)
+  dplyr::rename(c(longitude = x, latitude = y))
 
 findf_g2 <- left_join(findf_g2,
                       df,
