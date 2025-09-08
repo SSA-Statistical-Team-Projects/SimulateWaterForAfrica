@@ -7,6 +7,7 @@
 # or by using the mean yield from irrigation using neighbouring grids
 
 rm(list=ls())
+gc(reset = TRUE)
 
 # Loading Packages
 if(!require("pacman")) install.packages("pacman")

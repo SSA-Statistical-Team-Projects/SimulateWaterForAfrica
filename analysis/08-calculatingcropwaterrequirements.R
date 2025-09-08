@@ -113,21 +113,21 @@ any_irri_count/cropland_count #10.5%
 
 #defining variables for comparison
 for (var in c("cyl","fc2","tsc","sux")) {
-  crop_df[[var]] <- ifelse(
-    crop_df$both_irri_rain == 1 | crop_df$only_irri == 1,
-    crop_df[[paste0(var, "_L_irri")]],
-    crop_df[[paste0(var, "_L_rainfed")]]
+  crop_df[[var]] <- case_when(
+    crop_df$both_irri_rain == 1 | crop_df$only_irri == 1 ~ crop_df[[paste0(var, "_L_irri")]],
+    crop_df$only_rainfed == 1 ~ crop_df[[paste0(var, "_L_rainfed")]],
+    TRUE ~ NA_real_
   )
   rm(var)
 }
 
 crop_df <- crop_df %>%
-  dplyr::mutate(eta = ifelse(both_irri_rain == 1 | only_irri == 1,
-                             crop_actual_evopot_mm_irri,
-                             crop_actual_evopot_mm_rainfed),
-                wde = ifelse(both_irri_rain == 1 | only_irri == 1,
-                             growing_cycle_crop_water_def_mm_irri,
-                             growing_cycle_crop_water_def_mm_rainfed))
+  dplyr::mutate(eta = case_when(both_irri_rain == 1 | only_irri == 1 ~ crop_actual_evopot_mm_irri,
+                                only_rainfed == 1 ~ crop_actual_evopot_mm_rainfed,
+                                TRUE ~ NA_real_),
+                wde = case_when(both_irri_rain == 1 | only_irri == 1 ~ growing_cycle_crop_water_def_mm_irri,
+                                only_rainfed ==1 ~ growing_cycle_crop_water_def_mm_rainfed,
+                                TRUE ~ NA_real_))
 
 crop_df <- crop_df %>%
   dplyr::rename(c(#grid_suit_o_vs_index = sx1,
@@ -209,10 +209,7 @@ table(is.na(crop_df$crop_water_demand_mm_adj))
 #  FALSE    TRUE
 #  321108 554286 
 
-# To make the imputed means comparable, considering crop water deficit per hectare of harvest area
-crop_df <- crop_df %>%
-  dplyr::mutate(crop_water_demand_mm_ha_adj = crop_water_demand_mm_adj/har_rainfed_adj,
-                crop_actual_evopot_mm_ha_rainfed = crop_actual_evopot_mm_rainfed_adj / har_rainfed_adj)
+# Note, I will not adjust mm by HA because we want to eventually get at the volume and mm represents the height, and is therefore independent of the crop area
 
 ## If missing then fill in the values from a neighbouring grid.
 
@@ -239,7 +236,7 @@ unique_sf <- st_transform(unique_sf,
 df_buffer <- st_read("data-clean/working_data/gaez/buffer/buffer_12km.shp")
 buff_25km <- st_read("data-clean/working_data/gaez/buffer/buffer_25km.shp")
 
-crop_df$mean_crop_water_demand_mm_ha <- NA
+crop_df$mean_crop_water_demand_mm <- NA
 
 crop_df$mean_yld_irri <- NA
 
@@ -251,7 +248,7 @@ crop_df <- crop_df %>%
                                       NA,
                                       yld_irri)) %>%
   dplyr::group_by(crop_code, WB_NAME) %>%
-  dplyr::mutate(mean_crop_water_demand_mm_ha_country = mean(crop_water_demand_mm_ha_adj,
+  dplyr::mutate(mean_crop_water_demand_mm_country = mean(crop_water_demand_mm_adj,
                                                          na.rm = T),
                 mean_yld_irri_country = mean(yld_irri_new,
                                              na.rm = T)) %>%
@@ -264,7 +261,7 @@ for(crop in cereal_list) {
   # 1. Constructing a raster of crop water demand per hectare
   spg <- crop_df %>%
     dplyr::filter(crop_code == crop)  %>%
-    dplyr::select(c(latitude,longitude,crop_water_demand_mm_ha_adj))
+    dplyr::select(c(latitude,longitude,crop_water_demand_mm_adj))
   
   coordinates(spg) <- ~ longitude + latitude
   # coerce to SpatialPixelsDataFrame
@@ -309,13 +306,13 @@ for(crop in cereal_list) {
     dplyr::select(srno)
   
   # Extract the mean crop water demands within each 12 km buffer of point
-  subset_df$mean_crp_w_dmnd_mm_ha_neigh <- exact_extract(ras,
-                                                        df_buffer,
-                                                        fun="mean")
+  subset_df$mean_crp_w_dmnd_mm_neigh <- exact_extract(ras,
+                                                      df_buffer,
+                                                      fun="mean")
   
-  subset_df2$mean_crp_w_dmnd_mm_ha_fneigh <- exact_extract(ras,
-                                                          buff_25km,
-                                                          fun="mean")
+  subset_df2$mean_crp_w_dmnd_mm_fneigh <- exact_extract(ras,
+                                                        buff_25km,
+                                                        fun="mean")
   
   # Extract the mean crop water demands within each 12 km buffer of point
   subset_df$mean_yld_irri_neigh <- exact_extract(ras2,
@@ -331,7 +328,7 @@ for(crop in cereal_list) {
                            as.data.frame() %>%
                            dplyr::select(-geometry) %>%
                            dplyr::select(mean_yld_irri_fneigh,
-                                         mean_crp_w_dmnd_mm_ha_fneigh, srno),
+                                         mean_crp_w_dmnd_mm_fneigh, srno),
                          by = "srno")
   
   rm(subset_df2)
@@ -344,16 +341,16 @@ for(crop in cereal_list) {
                        by = c("srno","crop_code"))
   
   crop_df <- crop_df %>%
-    dplyr::mutate(mean_crop_water_demand_mm_ha = case_when(is.na(mean_crop_water_demand_mm_ha) &
-                                                          !is.na(mean_crp_w_dmnd_mm_ha_neigh) ~ mean_crp_w_dmnd_mm_ha_neigh,
-                                                        is.na(mean_crop_water_demand_mm_ha) &
-                                                          is.na(mean_crp_w_dmnd_mm_ha_neigh) &
-                                                          !is.na(mean_crp_w_dmnd_mm_ha_fneigh) ~ mean_crp_w_dmnd_mm_ha_fneigh,
-                                                        is.na(mean_crop_water_demand_mm_ha) &
-                                                          is.na(mean_crp_w_dmnd_mm_ha_neigh) &
-                                                          is.na(mean_crp_w_dmnd_mm_ha_fneigh) &
-                                                          !is.na(mean_crop_water_demand_mm_ha_country) ~ mean_crop_water_demand_mm_ha_country,
-                                                        TRUE ~ mean_crop_water_demand_mm_ha),
+    dplyr::mutate(mean_crop_water_demand_mm = case_when(is.na(mean_crop_water_demand_mm) &
+                                                          !is.na(mean_crp_w_dmnd_mm_neigh) ~ mean_crp_w_dmnd_mm_neigh,
+                                                        is.na(mean_crop_water_demand_mm) &
+                                                          is.na(mean_crp_w_dmnd_mm_neigh) &
+                                                          !is.na(mean_crp_w_dmnd_mm_fneigh) ~ mean_crp_w_dmnd_mm_fneigh,
+                                                        is.na(mean_crop_water_demand_mm) &
+                                                          is.na(mean_crp_w_dmnd_mm_neigh) &
+                                                          is.na(mean_crp_w_dmnd_mm_fneigh) &
+                                                          !is.na(mean_crop_water_demand_mm_country) ~ mean_crop_water_demand_mm_country,
+                                                        TRUE ~ mean_crop_water_demand_mm),
                   mean_yld_irri = case_when(is.na(mean_yld_irri) &
                                               !is.na(mean_yld_irri_neigh) ~ mean_yld_irri_neigh,
                                             is.na(mean_yld_irri) &
@@ -364,8 +361,8 @@ for(crop in cereal_list) {
                                               is.na(mean_yld_irri_fneigh) &
                                               !is.na(mean_yld_irri_country) ~ mean_yld_irri_country,
                                             TRUE ~ mean_yld_irri)) %>%
-    dplyr::select(-c(mean_crp_w_dmnd_mm_ha_neigh,
-                     mean_crp_w_dmnd_mm_ha_fneigh,mean_yld_irri_neigh,
+    dplyr::select(-c(mean_crp_w_dmnd_mm_neigh,
+                     mean_crp_w_dmnd_mm_fneigh,mean_yld_irri_neigh,
                      mean_yld_irri_fneigh))
   
   rm(ras,ras2, subset_df, spg,spg2, rasterPlot)
@@ -374,12 +371,12 @@ for(crop in cereal_list) {
 
 ## Adding in neighbouring values
 crop_df <- crop_df %>%
-  dplyr::mutate(crop_water_demand_mm_ha_imp = ifelse(is.na(crop_water_demand_mm_ha_adj),
-                                                  mean_crop_water_demand_mm_ha,
-                                                  crop_water_demand_mm_ha_adj))
+  dplyr::mutate(crop_water_demand_mm_imp = ifelse(is.na(crop_water_demand_mm_adj),
+                                                  mean_crop_water_demand_mm,
+                                                  crop_water_demand_mm_adj))
 
 
-table(is.na(crop_df$crop_water_demand_mm_ha_imp))
+table(is.na(crop_df$crop_water_demand_mm_imp))
 # FALSE    TRUE
 # 745720 129674
 
@@ -389,15 +386,15 @@ table(is.na(crop_df$crop_water_demand_mm_ha_imp))
 # constructing the volume of water required for rainfed areas & volume deficit
 # converting units to meter cube
 crop_df <- crop_df %>%
-  dplyr::mutate(crop_actual_evopot_mm_ha_imp = ifelse(is.na(crop_actual_evopot_mm_ha_rainfed) &
-                                                       !is.na(crop_water_demand_mm_ha_imp),
+  dplyr::mutate(crop_actual_evopot_mm_imp = ifelse(is.na(crop_actual_evopot_mm_rainfed) &
+                                                       !is.na(crop_water_demand_mm_imp),
                                                      0,
-                                                     crop_actual_evopot_mm_ha_rainfed),
+                                                     crop_actual_evopot_mm_rainfed),
                 crop_water_demand_vol_rainfed_m3 = ifelse(har_rainfed > 0,
-                                                          (crop_water_demand_mm_ha_imp/1000) * har_rainfed * 10000000, #converting mm to m and 1000 ha to m2
+                                                          (crop_water_demand_mm_imp/ 1000) * har_rainfed * 1e7, #converting mm to m and ha to m2 
                                                           NA),
                 crop_water_def_vol_rainfed_m3 = ifelse(har_rainfed > 0,
-                                                       ((crop_water_demand_mm_ha_imp - crop_actual_evopot_mm_ha_imp)/1000) * har_rainfed * 10000000,
+                                                       ((crop_water_demand_mm_imp - crop_actual_evopot_mm_imp)/ 1000) * har_rainfed * 1e7,
                                                        NA))
 
 # Saving dataset

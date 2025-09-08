@@ -173,7 +173,9 @@ crop_df <- left_join(crop_df,
 
 crop_df <- crop_df %>%
   dplyr::mutate(crop_a1_int = paste0(crop_code,"x",a1_id),
-                any_irri = ifelse(har_irri > 0,1,0),
+                any_irri = case_when(har_irri > 0 ~ 1,
+                                     har_tot > 0 & (is.na(har_irri) | har_irri == 0) ~ 0,
+                                     TRUE ~ NA_real_),
                 irri_intensity = har_irri/har_tot)
 
 saveRDS(crop_df,
