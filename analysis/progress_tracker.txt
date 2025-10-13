@@ -1,3 +1,7 @@
+
+finished 15
+
+---
 08 - 396 is wrong. it is current m but needs to be m3 - redo code - does not need to be adjusted by area
 13 - make sure the numbers are right - the water deficits for irri look massive
 -------------------
