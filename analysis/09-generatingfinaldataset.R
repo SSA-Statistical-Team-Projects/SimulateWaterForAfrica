@@ -85,8 +85,7 @@ wateruse_dt <- left_join(wateruse_dt %>%
                            dplyr::mutate(ISO_A3 = remove_var_label(Code)) ,
                          intersect_dt %>%
                            dplyr::mutate(is_ssa = 1) %>%
-                           dplyr::mutate(ISO_A3 = remove_var_label(ISO_A3)) %>%
-                           dplyr::mutate(ISO_A3 = as.character(ISO_A3)),
+                           dplyr::mutate(ISO_A3 = remove_var_label(ISO_A3)),
                          by = "ISO_A3")
 wateruse_dt <- wateruse_dt %>%
   dplyr::filter(is_ssa == 1)

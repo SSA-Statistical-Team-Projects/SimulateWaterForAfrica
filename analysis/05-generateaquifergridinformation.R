@@ -51,6 +51,8 @@ setnames(wateruse_dt,
 
 for(nm in c("agwater", "indwater", "hhwater")) {
   
+  wateruse_dt[, (paste0(nm, "_use_shr")) := get(paste0(nm, "_use_shr"))/100]
+  
   wateruse_dt[, (paste0(nm, "_use_vol")) := get(paste0(nm, "_use_shr"))* tot_use_vol]
   
 }
