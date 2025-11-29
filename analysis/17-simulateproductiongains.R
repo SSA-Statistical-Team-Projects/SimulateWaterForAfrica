@@ -294,7 +294,7 @@ GenerateSimulationResults <- function(crop_df,
       # Iterate over crop codes
       for (i in 1:length(cereal_list)) {
         crop_code <- cereal_list[i]
-        crop_name <- cereal_names[i]  # You might want to adjust this based on your data
+        crop_name <- cereal_names[i]  
         
         # Iterate over constraint values
         for (k in 1:length(depth_constraint_list)) {
@@ -415,8 +415,8 @@ write_xlsx(result_df,
            "output/tables/simulation/simulation_results_7m.xlsx")
 
 # Exporting tex files
-for(vol_typ in c("BGS GW Volume", "GAEZ GW Volume")) {
-  for(mod in c("SD","SRHS")) {
+for(vol_typ in c("GAEZ GW Volume")) {
+  for(mod in c("SRHS")) {
     
     if(vol_typ == "BGS GW Volume") {
       vol_name = "bgs"
@@ -489,8 +489,10 @@ for(vol_typ in c("BGS GW Volume", "GAEZ GW Volume")) {
 
 # Cropped version of the results
 
-for(vol_typ in c("GAEZ GW Volume")) {
-  for(mod in c("SRHS")) {
+for(vol_typ in c("GAEZ GW Volume","BGS GW Volume")) {
+  for(mod in c("SRHS","SD")) {
+    
+    if(vol_typ == "BGS GW Volume" & mod == "SD") { next}
     
     if(vol_typ == "BGS GW Volume") {
       vol_name = "bgs"
@@ -498,6 +500,42 @@ for(vol_typ in c("GAEZ GW Volume")) {
     } else {vol_name = "ls_wgp"
     data_typ = "World Bank"
     }
+    
+    if(vol_typ == "GAEZ GW Volume" & mod == "SRHS") {
+      
+      note = "\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by World Bank. Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production. All the results presented imposed conditions on groundwater depth $\\leq$ 7m and an extraction recharge ratio $\\leq$ 0.7."
+      out= "output/tables/simulation/Table_sim_main_res_ls_wgp_SRHS_depth7m.tex"
+      
+    }
+    
+    if(vol_typ == "GAEZ GW Volume" & mod == "SD") {
+      
+      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by",
+                    data_typ,
+                    "A simple differences approach is used to generate these results.",
+                    "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
+      )
+      out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
+    }
+    
+    if(vol_typ == "BGS GW Volume" & mod == "SRHS") {
+      
+      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by",
+                    data_typ,
+                    "A simple differences approach is used to generate these results.",
+                    "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
+      )
+      out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
+    }
+    
+    
+    if(vol_typ == "GAEZ GW Volume" & mod == "SRHS") {
+      label = "\\label{tab:res_main_SRHS_7m}"
+    } else {
+      label = paste0("\\label{tab:res_",mod,"_",vol_name,"_7m_cropped}")
+    }
+    
+   
     
     temp <- result_df %>%
       dplyr::filter(`GW Volume Data` == vol_typ &
@@ -530,8 +568,9 @@ for(vol_typ in c("GAEZ GW Volume")) {
     }
     
     tcf <- c("\\begin{table}[H] \\centering",
-            "\\caption{Simulation Results Using World Bank Measure of GW Volume}",
-            "\\label{tab:res_main_SRHS_7m}",
+             paste0("\\caption{Simulation Results Using ",mod,
+                    " Approach and ",data_typ," Measure of GW Volume}"),
+             label,
            "\\small",
            "\\setlength\\extrarowheight{-10pt}",
            "\\begin{threeparttable}",
@@ -540,23 +579,24 @@ for(vol_typ in c("GAEZ GW Volume")) {
            "\\\\[-1.8ex] \\\\  \\multicolumn{1}{c}{Crop} & \\multicolumn{1}{c}{\\shortstack{Grids \\\\\\ Satisfying \\\\\\ Constraints \\\\\\ (\\%)}} & \\multicolumn{1}{c}{\\shortstack{Grids with \\\\\\ Production \\\\\\ Gains (\\%)}} & \\multicolumn{1}{c}{\\shortstack{Median \\\\\\ Gains in \\\\\\ Production \\\\\\ (\\%)}} & \\multicolumn{1}{c}{\\shortstack{Mean \\\\\\ Gains in \\\\\\ Production \\\\\\ (\\%)}} \\\\",
            "\\\\[-1.8ex] \\\\  \\multicolumn{1}{c}{(1)} & \\multicolumn{1}{c}{(2)} & \\multicolumn{1}{c}{(3)} & \\multicolumn{1}{c}{(4)} & \\multicolumn{1}{c}{(5)} \\\\",
            "\\\\[-0.8ex] \\hline \\\\[-0.8ex] ",
-           tc[6],
-           tc[14],
-           tc[22],
+           tc[7],
+           tc[15],
+           tc[23],
            " \\hline \\\\",
            "\\end{tabular}",
            "\\begin{tablenotes} \\scriptsize",
-           "\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure using the aquifer dataset constructed by World Bank. Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production. All the results presented imposed conditions on groundwater depth $\\leq$ 7m and an extraction recharge ratio $\\leq$ 0.7.",
+           note,
            "\\end{tablenotes}",
            "\\end{threeparttable}",
            "\\end{table}")
     
     writeLines(tcf, 
-               "output/tables/simulation/Table_sim_main_res_ls_wgp_SRHS_depth7m.tex")
+               out)
     
-    rm(temp,tc,tcf,temp_xtab)
+    rm(temp,tc,tcf,temp_xtab,data_typ,note,out,vol_name, label)
     
   }
+  rm(vol_typ)
 }
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
