@@ -253,6 +253,18 @@ rm(plot1)
 # 5. Other Descriptive Stats
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+# number of croplands which are irrigated
+temp <- crop_df %>%
+  dplyr::group_by(srno) %>%
+  dplyr::summarise(har_tot = sum(har_tot,na.rm = TRUE),
+                   har_irri = sum(har_irri,na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(is_cropland = ifelse(har_tot > 0,1,0),
+                is_irri = ifelse(har_irri>0,1,0)) %>%
+  dplyr::filter(is_cropland == 1) %>%
+
+mean(temp$is_irri, na.rm = TRUE)
+
 # number of aquifer grids
 intersect_dt %>%  as.data.frame() %>% dplyr::distinct(grid_id) %>% dim()
 intersect_dt %>%  as.data.frame() %>% dplyr::filter(REGION_WB == "Sub-Saharan Africa") %>% dim()

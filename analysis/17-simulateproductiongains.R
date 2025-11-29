@@ -89,6 +89,18 @@ water_simulation <- function(crop_df,
   # Adding a crop value for filtering purposes (otherwise the filter doesn't work)
   crop = paste0(crop_code)
   
+  # Adding information on whether the grid is a cropland
+  temp <- crop_df %>%
+    dplyr::group_by(srno) %>%
+    dplyr::summarise(har_tot = sum(har_tot,na.rm = TRUE)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(is_cropland = ifelse(har_tot > 0,1,0)) %>%
+    dplyr::select(srno,is_cropland)
+  
+  crop_df <- left_join(crop_df,
+                       temp,
+                       by = "srno")
+  
   ### prepare effect dataset
   colnames(effect_dt)[colnames(effect_dt) %in% effect_var] <- "yld_diff_final"
   
@@ -177,15 +189,15 @@ water_simulation <- function(crop_df,
   ### GENERATING STATISTICS
   
   # Share of rainfed c-land where constraints are met
-  grid_constraints_met_perc <- round(dim(crop_df[which(crop_df$grid_constraints_met == 1),])[1]*100/dim(crop_df)[1],
+  grid_constraints_met_perc <- round(dim(crop_df[which(crop_df$grid_constraints_met == 1 & crop_df$is_cropland == 1),])[1]*100/dim(crop_df[which(crop_df$is_cropland == 1),])[1],
                                      2)
   
   # Share of grids where we observe production gains out of all grids
-  grids_with_gains_overall_perc <- round(dim(crop_df[which(crop_df$perc_gain_prod >0),])[1]*100/dim(crop_df)[1],
+  grids_with_gains_overall_perc <- round(dim(crop_df[which(crop_df$perc_gain_prod >0 & crop_df$is_cropland == 1),])[1]*100/dim(crop_df[which(crop_df$is_cropland == 1),])[1],
                                          2)
   
   # Share of grids where we observe production gains out of grids where the grid constraints are met
-  grids_with_gains_sub_perc <- round(dim(crop_df[which(crop_df$perc_gain_prod >0),])[1]*100/dim(crop_df[which(crop_df$grid_constraints_met == 1),])[1],
+  grids_with_gains_sub_perc <- round(dim(crop_df[which(crop_df$perc_gain_prod >0 & crop_df$is_cropland == 1),])[1]*100/dim(crop_df[which(crop_df$grid_constraints_met == 1 & crop_df$is_cropland == 1),])[1],
                                      2)
   
   # percentage of gains
@@ -510,9 +522,9 @@ for(vol_typ in c("GAEZ GW Volume","BGS GW Volume")) {
     
     if(vol_typ == "GAEZ GW Volume" & mod == "SD") {
       
-      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by",
+      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by ",
                     data_typ,
-                    "A simple differences approach is used to generate these results.",
+                    ". A simple differences approach is used to generate these results.",
                     "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
       )
       out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
@@ -520,9 +532,9 @@ for(vol_typ in c("GAEZ GW Volume","BGS GW Volume")) {
     
     if(vol_typ == "BGS GW Volume" & mod == "SRHS") {
       
-      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by",
+      note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by ",
                     data_typ,
-                    "A simple differences approach is used to generate these results.",
+                    ". A simple differences approach is used to generate these results.",
                     "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
       )
       out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
