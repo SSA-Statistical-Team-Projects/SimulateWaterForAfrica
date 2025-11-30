@@ -105,3 +105,8 @@ for(model in c("SRHS")) {
   rm(model)
   
 }
+
+# List of country-crop combinations with median gain of 0
+zero_gains <- country_crop_median_ci %>%
+  dplyr::filter(median_perc_gain_prod == 0 & crop_code %in% c("mze","rcw","whe") & model_name == "SRHS")
+zero_gains
