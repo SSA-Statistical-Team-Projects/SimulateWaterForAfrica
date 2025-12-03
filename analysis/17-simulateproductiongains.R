@@ -649,14 +649,14 @@ for (j in 1:length(effect_dt_list)) {
                                model_name = model_name,
                                depth_constraint = 7,
                                recharge_constraint = 0.7,
-                               prod_constraint = 0.05,
+                               prod_constraint = -3, #keeping the main specification's constraints
                                crop_code = crop_code)[[1]]
     
     sim_df <- sim_df %>%
       dplyr::mutate(model_name = model_name,
                     depth_constraint = 7,
                     recharge_constraint = 0.7,
-                    prod_constraint = 0.05)
+                    prod_constraint = -3)
     
     if(j ==1 & crop_code == cereal_list[1]) {
       fin_sim_df <- sim_df
