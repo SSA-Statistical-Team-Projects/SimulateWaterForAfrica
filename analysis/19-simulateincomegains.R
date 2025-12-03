@@ -12,6 +12,8 @@ if (!"pacman" %in% installed.packages()[, "Package"]) {
 
 pacman::p_load(sf, data.table, tidyverse, readxl, ggplot2, xtable, ggrepel)
 
+sf::sf_use_s2(FALSE)
+
 lapply(X = list.files("R", full.names = T),
        FUN = source)
 
@@ -37,14 +39,22 @@ agpop_dt <-
          country_name = "Country/territory") |>
   dplyr::select(country_code, country_name, agpop)
 
-### read in the country shapefile
-code_dt <- sf::st_read("data-raw/shapefile/WB_Boundaries_GeoJSON_highres/WB_countries_Admin0.geojson") %>%
-  st_drop_geometry() %>%
-  select(WB_NAME, ISO_A3)
+crop_df <- readRDS("data-clean/working_data/gaez/gaez_crop_year_analysis_final.RDS")
+
+code_dt <- 
+  crop_df |>
+  st_drop_geometry() |>
+  dplyr::select(WB_NAME, ISO_A3, srno) |>
+  unique()
+
+# ### read in the country shapefile
+# code_dt <- sf::st_read("data-raw/shapefile/WB_Boundaries_GeoJSON_highres/WB_countries_Admin0.geojson") %>%
+#   st_drop_geometry() %>%
+#   select(WB_NAME, ISO_A3)
 
 grid_dt <-
   grid_dt %>%
-  merge(code_dt, on = "WB_NAME")
+  merge(code_dt, on = "srno")
 
 #%%%%%%%%%%%%%%%%%%%
 # Cleaning Data
@@ -217,9 +227,11 @@ gpgrid_dt <- grid_dt[gains_dt, on = c("srno", "crop_code")]
 
 
 #### compute the income gains at the country level
+##### converting tonnes to kg 
 gpgrid_dt[, incomegains_ppp := cland_convert_prod_gain_1000tonne * 1e6 * ppp]
 gpgrid_dt[, incomegains_usd := cland_convert_prod_gain_1000tonne * 1e6 * usd]
 gpgrid_dt[, incomegains_nom := cland_convert_prod_gain_1000tonne * 1e6 * nom]
+
 
 income_dt <-
   gpgrid_dt[, lapply(.SD, sum, na.rm = TRUE),
@@ -231,14 +243,13 @@ income_dt <-
                    "depth_constraint", "recharge_constraint",
                    "prod_constraint")]
 
-income_dt <- income_dt[!is.na(WB_NAME), ]
+income_dt <- income_dt[!is.na(ISO_A3), ]
 
 
 ### to get the hectarage go ahead and use
 farm_dt <-
-  readRDS("data-clean/working_data/gaez/gaez_crop_year_analysis_final.RDS") %>%
-  select(crop_code, year, har_rainfed, srno) %>%
-  filter(year == 2010)
+  crop_df %>%
+  select(crop_code, har_rainfed, srno) 
 
 gpgrid_dt <-
   farm_dt %>%
@@ -284,9 +295,9 @@ income_dt <- add_dt[, c("ISO_A3", "WB_NAME",
 
 income_dt <-
   income_dt |>
-  merge(y = agpop_dt,
-        by.y = "country_code",
-        by.x = "ISO_A3")
+  left_join(agpop_dt,
+            by = c("ISO_A3" = "country_code",
+                   "WB_NAME" = "country_name"))
 
 income_dt[, incomegains_ppp_pcapinag := incomegains_ppp / agpop]
 income_dt[, incomegains_usd_pcapinag := incomegains_usd / agpop]
@@ -305,6 +316,9 @@ income_dt[, incomegains_nom_pcapinag := incomegains_nom / agpop]
 
 income_dt[, rate_extremepov_ppp := incomegains_ppp_pcapinag / (1.90*365)]
 income_dt[, rate_extremepov_usd := incomegains_usd_pcapinag / (1.90*365)]
+
+### only keep the data with ISO3 codes since the NAs are not countries
+x <- income_dt[!is.na(ISO_A3), ]
 
 
 fwrite(income_dt[, c("WB_NAME", "ISO_A3", "incomegains_ppp",
