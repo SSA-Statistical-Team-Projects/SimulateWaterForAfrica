@@ -62,34 +62,55 @@ country_crop_median_ci <- sim_df %>%
 
 
 # For all crops in one bar graph
+
+crop_labels <- c("mze"="Maize", "rcw"="Rice", "whe"="Wheat")
+
 for(model in c("SRHS")) {
   
-  plot1 <- ggplot(data = country_crop_median_ci %>%
-                    dplyr::filter(crop_code %in% c("mze","rcw","whe") & model_name == model &
-                                    median_perc_gain_prod != 0 & 
-                                    no_grids_with_results >=5)) + 
+  df = country_crop_median_ci %>%
+    dplyr::filter(crop_code %in% c("mze","rcw","whe") & model_name == model &
+                    median_perc_gain_prod != 0 & 
+                    no_grids_with_results >=5) %>%
+    dplyr::arrange(WB_NAME)
+  
+  # Factor WB_NAME alphabetically
+  df$WB_NAME <- factor(df$WB_NAME, levels = rev(sort(unique(df$WB_NAME))))
+  
+  plot1 <- ggplot(
+    data = df,
     aes(x = median_perc_gain_prod,
-        y = reorder(WB_NAME, -median_perc_gain_prod),
-        fill = crop_code) +
-    geom_bar(stat = "identity") + #goldenrod3
-    scale_fill_manual(values = c("darkblue", "yellowgreen","darkgoldenrod2"),
-                      labels = c("Maize", "Rice","Wheat")) +
-    labs(x = paste0("Median Production Gain (%)"),
-         y = "Country",
-         fill = "Crop") +
+        y = WB_NAME,
+        fill = crop_code)
+  ) +
+    geom_col() +
+    scale_fill_manual(
+      values = c("mze" = "darkblue",
+                 "rcw" = "yellowgreen",
+                 "whe" = "darkgoldenrod2"),
+      labels = c("mze" = "Maize",
+                 "rcw" = "Rice",
+                 "whe" = "Wheat"),
+      name   = "Crop"
+    ) +
+    facet_wrap(
+      ~ crop_code,
+      scales  = "fixed",                 # same x-axis across facets
+      labeller = labeller(crop_code = crop_labels)
+    ) +
+    labs(
+      x = "Median Production Gain (%)",
+      y = "Country"
+    ) +
     theme_minimal() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.text.y = element_text(size = 10,
-                                     family = "sans"),
-          axis.text.x = element_text(size = 10,
-                                     family = "sans"),
-          axis.title = element_text(size = 14,
-                                    family = "sans",
-                                    hjust = 0.5),
-          plot.title = element_text(size = 16,
-                                    family = "sans",
-                                    hjust = 0.5))
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.y = element_text(size = 10, family = "sans"),
+      axis.text.x = element_text(size = 10, family = "sans"),
+      axis.title  = element_text(size = 14, family = "sans"),
+      plot.title  = element_text(size = 16, family = "sans", hjust = 0.5),
+      strip.text  = element_text(size = 12, face = "bold")
+    )
   
   ggsave(filename = paste0("output/graphs/bar_country_gain_all_",
                            model,
@@ -98,7 +119,7 @@ for(model in c("SRHS")) {
          width = 10, height = 8, dpi = 150, units = "in",
          device='png')
   
-  rm(plot1)
+  rm(plot1,df)
   
   
   rm(list = ls(pattern = "^plot"))
@@ -110,3 +131,7 @@ for(model in c("SRHS")) {
 zero_gains <- country_crop_median_ci %>%
   dplyr::filter(median_perc_gain_prod == 0 & crop_code %in% c("mze","rcw","whe") & model_name == "SRHS")
 zero_gains
+
+under5_gains <- country_crop_median_ci %>%
+  dplyr::filter(no_grids_with_results <5 & crop_code %in% c("mze","rcw","whe") & model_name == "SRHS")
+under5_gains %>% dplyr::group_by(WB_NAME) %>% dplyr::mutate(count = n()) %>% dplyr::ungroup() %>% dplyr::filter(count ==3) %>% dplyr::distinct(WB_NAME) %>% print()
