@@ -265,12 +265,16 @@ temp <- crop_df %>%
 
 mean(temp$is_irri, na.rm = TRUE)
 
-# number of aquifer grids
-intersect_dt %>%  as.data.frame() %>% dplyr::distinct(grid_id) %>% dim()
-intersect_dt %>%  as.data.frame() %>% dplyr::filter(REGION_WB == "Sub-Saharan Africa") %>% dim()
 
 # share of local shallow aquifers in SSA
-intersect_dt <- readRDS(here("data-clean/working_data/world-bank-aquifer-data/aquifermasterpoly.RDS"))
+intersect_dt <- readRDS("data-clean/working_data/world-bank-aquifer-data/aquifermasterpoly.RDS")
+
+# number of aquifer grids
+intersect_dt %>%  
+  as_tibble() |> 
+  dplyr::filter(REGION_WB == "Sub-Saharan Africa") |>
+  dplyr::distinct(grid_id) |>
+  dim() #8545
 
 intersect_dt <- as.data.table(intersect_dt)
 

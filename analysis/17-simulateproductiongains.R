@@ -525,7 +525,7 @@ for(vol_typ in c("GAEZ GW Volume","BGS GW Volume")) {
       note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by ",
                     data_typ,
                     ". A simple differences approach is used to generate these results.",
-                    "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
+                    " Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
       )
       out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
     }
@@ -534,8 +534,7 @@ for(vol_typ in c("GAEZ GW Volume","BGS GW Volume")) {
       
       note = paste0("\\item Notes. In this table we present the results of the simulation approach using the groundwater supply or volume measure from the aquifer dataset constructed by ",
                     data_typ,
-                    ". A simple differences approach is used to generate these results.",
-                    "Each row represents one simulation. Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
+                    ". Column (1) specifies the crop for which the analysis was run. Column (2) presents the fraction of all croplands where the constraints were met. Column (3) presents the share of croplands where we see production gains compared to all the croplands where the constraints were met. Columns (4) and (5) present the median and mean of the simulated gains in production."
       )
       out= paste0("output/tables/simulation/Table_sim_res_",vol_name,"_",mod,"_depth7m_cropped.tex")
     }
