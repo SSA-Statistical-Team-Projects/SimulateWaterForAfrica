@@ -225,347 +225,399 @@ gains_dt <- as.data.table(gains_dt)
 
 gpgrid_dt <- grid_dt[gains_dt, on = c("srno", "crop_code")]
 
-
-#### compute the income gains at the country level
-##### converting tonnes to kg 
-gpgrid_dt[, incomegains_ppp := cland_convert_prod_gain_1000tonne * 1e6 * ppp]
-gpgrid_dt[, incomegains_usd := cland_convert_prod_gain_1000tonne * 1e6 * usd]
-gpgrid_dt[, incomegains_nom := cland_convert_prod_gain_1000tonne * 1e6 * nom]
-
-
-income_dt <-
-  gpgrid_dt[, lapply(.SD, sum, na.rm = TRUE),
-            .SDcols = c("cland_convert_prod_gain_1000tonne",
-                        "incomegains_ppp",
-                        "incomegains_usd",
-                        "incomegains_nom"),
-            by = c("ISO_A3", "WB_NAME", "crop_code", "model_name",
-                   "depth_constraint", "recharge_constraint",
-                   "prod_constraint")]
-
-income_dt <- income_dt[!is.na(ISO_A3), ]
-
-
-### to get the hectarage go ahead and use
-farm_dt <-
-  crop_df %>%
-  select(crop_code, har_rainfed, srno) 
-
-gpgrid_dt <-
-  farm_dt %>%
-  as.data.table() %>%
-  .[gpgrid_dt, on = c("srno", "crop_code")]
+#### plotting the productivity gains 
+sfgains_dt <- 
+  gpgrid_dt |>
+  mutate(
+    gains_indicator = case_when(
+      is.na(cland_convert_prod_gain_1000tonne) ~ "No Data",
+      cland_convert_prod_gain_1000tonne > 0 ~ "Gain",
+      cland_convert_prod_gain_1000tonne <= 0 ~ "No Gain"
+    )
+  ) |>
+  mutate(gains_indicator = factor(gains_indicator, levels = c("Gain", "No Gain", "No Data"))) |>
+  mutate(crop_name = case_when(
+    crop_code == "mze" ~ "Maize",
+    crop_code == "rcw" ~ "Rice",
+    crop_code == "whe" ~ "Wheat",
+    TRUE ~ NA_character_
+  )) |>
+  as_tibble() |>
+  dplyr::select(grid_ID, srno, WB_NAME, ISO_A3, crop_code, crop_name,
+                cland_convert_prod_gain_1000tonne, gains_indicator, geometry) |>
+  st_as_sf(crs = 4326, agr = "constant")
 
 
-### compute income per hectare
-gpgrid_dt[, incomegains_ppp_perhect :=
-            cland_convert_prod_gain_1000tonne * 1e6 * ppp / (har_rainfed * 1000)]
-gpgrid_dt[, incomegains_usd_perhect :=
-            cland_convert_prod_gain_1000tonne * 1e6 * usd / (har_rainfed * 1000)]
-gpgrid_dt[, incomegains_nom_perhect :=
-            cland_convert_prod_gain_1000tonne * 1e6 * nom / (har_rainfed * 1000)]
+
+#### create the plots 
+sfgains_plot <- 
+sfgains_dt |>
+ggplot() +
+  geom_sf(aes(fill = gains_indicator), color = NA) +
+  scale_fill_manual(values = c("Gain" = "#1b9e77", 
+                               "No Gain" = "#d95f02", 
+                               "No Data" = "grey80"),
+                    na.value = "grey80") +
+  facet_wrap(~crop_name, nrow = 1) +
+  labs(x = "", y = "") +
+  theme_minimal() +
+  theme(
+    legend.title = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_blank(),
+    strip.text = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 11),
+    legend.key.size = unit(0.8, "cm")
+  )
+
+ggsave(filename = "output/graphs/gains_indicator_distribution.png",
+       plot = sfgains_plot,
+       width = 14, height = 5, dpi = 300, units = "in",
+       device = 'png')
 
 
-add_dt <-
-  gpgrid_dt[, lapply(.SD, mean, na.rm = TRUE),
-            .SDcols = c("incomegains_ppp_perhect",
-                        "incomegains_usd_perhect",
-                        "incomegains_nom_perhect"),
-            by = c("ISO_A3", "WB_NAME", "crop_code", "model_name",
-                   "depth_constraint", "recharge_constraint",
-                   "prod_constraint")]
-
-income_dt <- add_dt[, c("ISO_A3", "WB_NAME",
-                        "crop_code", "model_name",
-                        "incomegains_ppp_perhect",
-                        "incomegains_usd_perhect",
-                        "incomegains_nom_perhect")][income_dt,
-                                                    on = c("ISO_A3", "WB_NAME",
-                                                           "crop_code", "model_name")]
-
-### income per capita
-# pop_dt <- fread("data-clean/working_data/population2010.csv")
-# agpop_dt <- fread("data-clean/working_data/estimation/ag_employment.csv")
-# setnames(pop_dt,
-#          old = c("Country Code", "y2010"),
-#          new = c("ISO_A3", "population"))
-#
-# income_dt <- pop_dt[, c("ISO_A3", "population")][income_dt, on = c("ISO_A3")]
-# income_dt[, population := as.numeric(population)]
-
-income_dt <-
-  income_dt |>
-  left_join(agpop_dt,
-            by = c("ISO_A3" = "country_code",
-                   "WB_NAME" = "country_name"))
-
-income_dt[, incomegains_ppp_pcapinag := incomegains_ppp / agpop]
-income_dt[, incomegains_usd_pcapinag := incomegains_usd / agpop]
-income_dt[, incomegains_nom_pcapinag := incomegains_nom / agpop]
-
-# setnames(agpop_dt,
-#          old = c("ISO3", "2010ag"),
-#          new = c("ISO_A3", "agemprate"))
-#
-# income_dt <- agpop_dt[, c("ISO_A3", "agemprate")][income_dt, on = "ISO_A3"]
-# income_dt[, agemppop := 0.01 * agemprate * population ]
-#
-# income_dt[, incomegains_ppp_pcapinag := incomegains_ppp / agemppop]
-# income_dt[, incomegains_usd_pcapinag := incomegains_usd / agemppop]
-# income_dt[, incomegains_nom_pcapinag := incomegains_nom / agemppop]
-
-income_dt[, rate_extremepov_ppp := incomegains_ppp_pcapinag / (1.90*365)]
-income_dt[, rate_extremepov_usd := incomegains_usd_pcapinag / (1.90*365)]
-
-### only keep the data with ISO3 codes since the NAs are not countries
-x <- income_dt[!is.na(ISO_A3), ]
+# #### compute the income gains at the country level
+# ##### converting tonnes to kg 
+# gpgrid_dt[, incomegains_ppp := cland_convert_prod_gain_1000tonne * 1e6 * ppp]
+# gpgrid_dt[, incomegains_usd := cland_convert_prod_gain_1000tonne * 1e6 * usd]
+# gpgrid_dt[, incomegains_nom := cland_convert_prod_gain_1000tonne * 1e6 * nom]
 
 
-fwrite(income_dt[, c("WB_NAME", "ISO_A3", "incomegains_ppp",
-                     "incomegains_usd", "incomegains_ppp_pcapinag",
-                     "incomegains_usd_pcapinag", "rate_extremepov_ppp",
-                     "rate_extremepov_usd")],
-       "data-clean/results/income_gains.csv")
+# income_dt <-
+#   gpgrid_dt[, lapply(.SD, sum, na.rm = TRUE),
+#             .SDcols = c("cland_convert_prod_gain_1000tonne",
+#                         "incomegains_ppp",
+#                         "incomegains_usd",
+#                         "incomegains_nom"),
+#             by = c("ISO_A3", "WB_NAME", "crop_code", "model_name",
+#                    "depth_constraint", "recharge_constraint",
+#                    "prod_constraint")]
 
-#### plot distribution of income gains percent of poverty line
-
-crop_dt <- data.table(crop_name = c("wheat", "rice", "maize"),
-                      crop_code = c("whe", "rcw", "mze"))
-
-income_dt <- crop_dt[income_dt, on = "crop_code"]
-
-
-map_dt <- expand.grid(crop_dt$crop_name,
-                      c("SD", "SRHS")) %>%
-  as.data.table() %>%
-  setnames(old = c("Var1", "Var2"),
-           new = c("crop", "sim")) %>%
-  mutate(crop = as.character(crop)) %>%
-  mutate(sim = as.character(sim))
-
-income_dt[, percent_extremepov_ppp := rate_extremepov_ppp * 100]
-income_dt[, percent_extremepov_usd := rate_extremepov_usd * 100]
+# income_dt <- income_dt[!is.na(ISO_A3), ]
 
 
-# mapply(FUN = barplot_income_gains,
-#        dt = rep(income_dt, nrow(map_dt)),
-#        model_name = map_dt$crop,
-#        crop_name = map_dt$sim,
-#        outvar = "percent_extremepov_ppp")
+# ### to get the hectarage go ahead and use
+# farm_dt <-
+#   crop_df %>%
+#   select(crop_code, har_rainfed, srno) 
 
-### compute the expected change in nominal income per capita as a result
-##### read in nominal gdp per capita data in LCU
-
-gdppcap_dt <- fread("data-clean/gdppcaplcu.csv")
-
-setnames(gdppcap_dt,
-         old = c("Country Name", "Country Code"),
-         new = c("WB_NAME", "ISO_A3"))
-
-income_dt <- gdppcap_dt[income_dt, on = c("ISO_A3", "WB_NAME")]
-
-income_dt[, percent_income_pcapinag_ingdplcu := (incomegains_nom_pcapinag / gdppcaplcu) * 100]
+# gpgrid_dt <-
+#   farm_dt %>%
+#   as.data.table() %>%
+#   .[gpgrid_dt, on = c("srno", "crop_code")]
 
 
-for (row in 1:nrow(map_dt)){
+# ### compute income per hectare
+# gpgrid_dt[, incomegains_ppp_perhect :=
+#             cland_convert_prod_gain_1000tonne * 1e6 * ppp / (har_rainfed * 1000)]
+# gpgrid_dt[, incomegains_usd_perhect :=
+#             cland_convert_prod_gain_1000tonne * 1e6 * usd / (har_rainfed * 1000)]
+# gpgrid_dt[, incomegains_nom_perhect :=
+#             cland_convert_prod_gain_1000tonne * 1e6 * nom / (har_rainfed * 1000)]
+
+
+# add_dt <-
+#   gpgrid_dt[, lapply(.SD, mean, na.rm = TRUE),
+#             .SDcols = c("incomegains_ppp_perhect",
+#                         "incomegains_usd_perhect",
+#                         "incomegains_nom_perhect"),
+#             by = c("ISO_A3", "WB_NAME", "crop_code", "model_name",
+#                    "depth_constraint", "recharge_constraint",
+#                    "prod_constraint")]
+
+# income_dt <- add_dt[, c("ISO_A3", "WB_NAME",
+#                         "crop_code", "model_name",
+#                         "incomegains_ppp_perhect",
+#                         "incomegains_usd_perhect",
+#                         "incomegains_nom_perhect")][income_dt,
+#                                                     on = c("ISO_A3", "WB_NAME",
+#                                                            "crop_code", "model_name")]
+
+# ### income per capita
+# # pop_dt <- fread("data-clean/working_data/population2010.csv")
+# # agpop_dt <- fread("data-clean/working_data/estimation/ag_employment.csv")
+# # setnames(pop_dt,
+# #          old = c("Country Code", "y2010"),
+# #          new = c("ISO_A3", "population"))
+# #
+# # income_dt <- pop_dt[, c("ISO_A3", "population")][income_dt, on = c("ISO_A3")]
+# # income_dt[, population := as.numeric(population)]
+
+# income_dt <-
+#   income_dt |>
+#   left_join(agpop_dt,
+#             by = c("ISO_A3" = "country_code",
+#                    "WB_NAME" = "country_name"))
+
+# income_dt[, incomegains_ppp_pcapinag := incomegains_ppp / agpop]
+# income_dt[, incomegains_usd_pcapinag := incomegains_usd / agpop]
+# income_dt[, incomegains_nom_pcapinag := incomegains_nom / agpop]
+
+# # setnames(agpop_dt,
+# #          old = c("ISO3", "2010ag"),
+# #          new = c("ISO_A3", "agemprate"))
+# #
+# # income_dt <- agpop_dt[, c("ISO_A3", "agemprate")][income_dt, on = "ISO_A3"]
+# # income_dt[, agemppop := 0.01 * agemprate * population ]
+# #
+# # income_dt[, incomegains_ppp_pcapinag := incomegains_ppp / agemppop]
+# # income_dt[, incomegains_usd_pcapinag := incomegains_usd / agemppop]
+# # income_dt[, incomegains_nom_pcapinag := incomegains_nom / agemppop]
+
+# income_dt[, rate_extremepov_ppp := incomegains_ppp_pcapinag / (1.90*365)]
+# income_dt[, rate_extremepov_usd := incomegains_usd_pcapinag / (1.90*365)]
+
+# ### only keep the data with ISO3 codes since the NAs are not countries
+# x <- income_dt[!is.na(ISO_A3), ]
+
+
+# fwrite(income_dt[, c("WB_NAME", "ISO_A3", "incomegains_ppp",
+#                      "incomegains_usd", "incomegains_ppp_pcapinag",
+#                      "incomegains_usd_pcapinag", "rate_extremepov_ppp",
+#                      "rate_extremepov_usd")],
+#        "data-clean/results/income_gains.csv")
+
+# #### plot distribution of income gains percent of poverty line
+
+# crop_dt <- data.table(crop_name = c("wheat", "rice", "maize"),
+#                       crop_code = c("whe", "rcw", "mze"))
+
+# income_dt <- crop_dt[income_dt, on = "crop_code"]
+
+
+# map_dt <- expand.grid(crop_dt$crop_name,
+#                       c("SD", "SRHS")) %>%
+#   as.data.table() %>%
+#   setnames(old = c("Var1", "Var2"),
+#            new = c("crop", "sim")) %>%
+#   mutate(crop = as.character(crop)) %>%
+#   mutate(sim = as.character(sim))
+
+# income_dt[, percent_extremepov_ppp := rate_extremepov_ppp * 100]
+# income_dt[, percent_extremepov_usd := rate_extremepov_usd * 100]
+
+
+# # mapply(FUN = barplot_income_gains,
+# #        dt = rep(income_dt, nrow(map_dt)),
+# #        model_name = map_dt$crop,
+# #        crop_name = map_dt$sim,
+# #        outvar = "percent_extremepov_ppp")
+
+# ### compute the expected change in nominal income per capita as a result
+# ##### read in nominal gdp per capita data in LCU
+
+# gdppcap_dt <- fread("data-clean/gdppcaplcu.csv")
+
+# setnames(gdppcap_dt,
+#          old = c("Country Name", "Country Code"),
+#          new = c("WB_NAME", "ISO_A3"))
+
+# income_dt <- gdppcap_dt[income_dt, on = c("ISO_A3", "WB_NAME")]
+
+# income_dt[, percent_income_pcapinag_ingdplcu := (incomegains_nom_pcapinag / gdppcaplcu) * 100]
+
+
+# for (row in 1:nrow(map_dt)){
   
-  barplot_income_gains(dt = income_dt,
-                       model = map_dt$sim[[row]],
-                       crop = map_dt$crop[[row]],
-                       outvar = "percent_extremepov_ppp",
-                       nametag = "pfwadj")
+#   barplot_income_gains(dt = income_dt,
+#                        model = map_dt$sim[[row]],
+#                        crop = map_dt$crop[[row]],
+#                        outvar = "percent_extremepov_ppp",
+#                        nametag = "pfwadj")
   
   
-}
+# }
 
 
 
-for (row in 1:nrow(map_dt)){
+# for (row in 1:nrow(map_dt)){
   
-  barplot_income_gains(dt = income_dt,
-                       model = map_dt$sim[[row]],
-                       crop = map_dt$crop[[row]],
-                       outvar = "percent_extremepov_usd",
-                       nametag = "exchange")
+#   barplot_income_gains(dt = income_dt,
+#                        model = map_dt$sim[[row]],
+#                        crop = map_dt$crop[[row]],
+#                        outvar = "percent_extremepov_usd",
+#                        nametag = "exchange")
   
   
-}
+# }
 
 
 
-### keep only the three crops we care about
-income_dt <- income_dt[ crop_code %in% c("whe", "rcw", "mze"),]
+# ### keep only the three crops we care about
+# income_dt <- income_dt[ crop_code %in% c("whe", "rcw", "mze"),]
 
 
-##### compute overall changes
+# ##### compute overall changes
 
-overall_dt <- income_dt[, lapply(.SD, sum, na.rm = TRUE),
-                        .SDcols = c("percent_extremepov_ppp", "percent_extremepov_usd"),
-                        by = c("WB_NAME", "ISO_A3", "model_name")]
+# overall_dt <- income_dt[, lapply(.SD, sum, na.rm = TRUE),
+#                         .SDcols = c("percent_extremepov_ppp", "percent_extremepov_usd"),
+#                         by = c("WB_NAME", "ISO_A3", "model_name")]
 
 
-for (i in seq_along(c("SD", "SRHS"))){
+# for (i in seq_along(c("SD", "SRHS"))){
   
-  barplot_totalincome_gains(dt = income_dt,
-                            model = c("SD", "SRHS")[i],
-                            outvar = "percent_extremepov_ppp",
-                            nametag = "pfwadj")
+#   barplot_totalincome_gains(dt = income_dt,
+#                             model = c("SD", "SRHS")[i],
+#                             outvar = "percent_extremepov_ppp",
+#                             nametag = "pfwadj")
   
-}
+# }
 
 
 
 
-for (i in seq_along(c("SD", "SRHS"))){
+# for (i in seq_along(c("SD", "SRHS"))){
   
-  barplot_totalincome_gains(dt = income_dt,
-                            model = c("SD", "SRHS")[i],
-                            outvar = "percent_extremepov_usd",
-                            nametag = "exchange")
+#   barplot_totalincome_gains(dt = income_dt,
+#                             model = c("SD", "SRHS")[i],
+#                             outvar = "percent_extremepov_usd",
+#                             nametag = "exchange")
   
-}
+# }
 
 
-##### include a plot of the maps
-for (i in seq_along(c("SD", "SRHS"))){
+# ##### include a plot of the maps
+# for (i in seq_along(c("SD", "SRHS"))){
   
-  barplot_totalincome_gains(dt = income_dt,
-                            model = c("SD", "SRHS")[i],
-                            outvar = "percent_income_pcapinag_ingdplcu",
-                            nametag = "incomepergdplcu")
+#   barplot_totalincome_gains(dt = income_dt,
+#                             model = c("SD", "SRHS")[i],
+#                             outvar = "percent_income_pcapinag_ingdplcu",
+#                             nametag = "incomepergdplcu")
   
-}
+# }
 
-allnom_dt <- income_dt[, sum(percent_income_pcapinag_ingdplcu, na.rm = TRUE),
-                       by = c("WB_NAME", "ISO_A3", "model_name")]
+# allnom_dt <- income_dt[, sum(percent_income_pcapinag_ingdplcu, na.rm = TRUE),
+#                        by = c("WB_NAME", "ISO_A3", "model_name")]
 
-setnames(allnom_dt, "V1", "percent_income_pcapinag_ingdplcu")
+# setnames(allnom_dt, "V1", "percent_income_pcapinag_ingdplcu")
 
 
-for (i in seq_along(c("SD", "SRHS"))){
+# for (i in seq_along(c("SD", "SRHS"))){
   
-  barplot_totalincome_gains(dt = allnom_dt,
-                            model = c("SD", "SRHS")[i],
-                            outvar = "percent_income_pcapinag_ingdplcu",
-                            nametag = "ALL_incomepergdplcu")
+#   barplot_totalincome_gains(dt = allnom_dt,
+#                             model = c("SD", "SRHS")[i],
+#                             outvar = "percent_income_pcapinag_ingdplcu",
+#                             nametag = "ALL_incomepergdplcu")
   
-}
+# }
 
 
 
-#### create the xtables for the paper
+# #### create the xtables for the paper
 
-total_dt <- income_dt[, sum(percent_extremepov_ppp, na.rm = TRUE), by = c("WB_NAME", "ISO_A3", "model_name")]
+# total_dt <- income_dt[, sum(percent_extremepov_ppp, na.rm = TRUE), by = c("WB_NAME", "ISO_A3", "model_name")]
 
-setnames(total_dt, "V1", "overall_inc_gains_change_povline")
+# setnames(total_dt, "V1", "overall_inc_gains_change_povline")
 
-srhs_dt <- total_dt[model_name == "SRHS",]
-sd_dt <- total_dt[model_name == "SD",]
+# srhs_dt <- total_dt[model_name == "SRHS",]
+# sd_dt <- total_dt[model_name == "SD",]
 
-write.csv(total_dt[order(-overall_inc_gains_change_povline) & model_name == "SRHS",
-                   c("WB_NAME", "ISO_A3","overall_inc_gains_change_povline")],
-          "data-clean/results/income_gains_change_SRHS.csv")
+# write.csv(total_dt[order(-overall_inc_gains_change_povline) & model_name == "SRHS",
+#                    c("WB_NAME", "ISO_A3","overall_inc_gains_change_povline")],
+#           "data-clean/results/income_gains_change_SRHS.csv")
 
-write.csv(total_dt[order(-overall_inc_gains_change_povline) & model_name == "SD",
-                   c("WB_NAME", "ISO_A3","overall_inc_gains_change_povline")],
-          "data-clean/results/income_gains_change_SD.csv")
-
-
-
-### quick create .tex file
-tex_dt <- read.csv("data-clean/results/income_gains_change_SRHS.csv")
-
-tex_dt <- as.data.table(tex_dt)
-
-tex_dt <- tex_dt[, 2:4]
-
-# setnames(tex_dt,
-#          c("overall_inc_gains_change_povline",
-#            "Country.Code"),
-#          c("income_gains", "code"))
-
-colnames(tex_dt) <- c("Country", "ISO-3 Code", "Gains (%)")
-
-latex_table <- xtable(tex_dt,
-                      caption = "% Income Gains Per Capita of 1.90 USD International Poverty Line (SRHS Model)")
-
-# writeLines(
-#   xtable::xtable(latex_table, caption = "Percentage Income Gains Per Capita of International Poverty Line"),
-#   "output/tables/simulation/incomegains_percapita.tex"
-# )
-
-
-# Create LaTeX table object
-# Save LaTeX table to a .tex file
-sink("output/tables/simulation/incomegains_percapita_SRHS.tex")
-print(latex_table, caption.placement = "top")
-sink()
+# write.csv(total_dt[order(-overall_inc_gains_change_povline) & model_name == "SD",
+#                    c("WB_NAME", "ISO_A3","overall_inc_gains_change_povline")],
+#           "data-clean/results/income_gains_change_SD.csv")
 
 
 
-tex_dt <- read.csv("data-clean/results/income_gains_change_SD.csv")
+# ### quick create .tex file
+# tex_dt <- read.csv("data-clean/results/income_gains_change_SRHS.csv")
 
-tex_dt <- as.data.table(tex_dt)
+# tex_dt <- as.data.table(tex_dt)
 
-# setnames(tex_dt,
-#          c("Income.Gains....of.1.90.USD.extreme.poverty.line.",
-#            "Country.Code"),
-#          c("income_gains", "code"))
+# tex_dt <- tex_dt[, 2:4]
 
-tex_dt <- tex_dt[, 2:4]
+# # setnames(tex_dt,
+# #          c("overall_inc_gains_change_povline",
+# #            "Country.Code"),
+# #          c("income_gains", "code"))
 
-colnames(tex_dt) <- c("Country", "ISO-3 Code", "Gains (%)")
+# colnames(tex_dt) <- c("Country", "ISO-3 Code", "Gains (%)")
 
-latex_table <- xtable(tex_dt,
-                      caption = "% Income Gains Per Capita of 1.90 USD International Poverty Line (SD Model)")
+# latex_table <- xtable(tex_dt,
+#                       caption = "% Income Gains Per Capita of 1.90 USD International Poverty Line (SRHS Model)")
 
-# writeLines(
-#   xtable::xtable(latex_table, caption = "Percentage Income Gains Per Capita of International Poverty Line"),
-#   "output/tables/simulation/incomegains_percapita.tex"
-# )
-
-
-# Create LaTeX table object
-# Save LaTeX table to a .tex file
-sink("output/tables/simulation/incomegains_percapita_SD.tex")
-print(latex_table, caption.placement = "top")
-sink()
+# # writeLines(
+# #   xtable::xtable(latex_table, caption = "Percentage Income Gains Per Capita of International Poverty Line"),
+# #   "output/tables/simulation/incomegains_percapita.tex"
+# # )
 
 
+# # Create LaTeX table object
+# # Save LaTeX table to a .tex file
+# sink("output/tables/simulation/incomegains_percapita_SRHS.tex")
+# print(latex_table, caption.placement = "top")
+# sink()
 
 
-#### draw historgram
 
-# Sort by income gains
-srhs_dt <- srhs_dt[order(overall_inc_gains_change_povline)]
+# tex_dt <- read.csv("data-clean/results/income_gains_change_SD.csv")
 
-# Compute ECDF manually to get proper (x, y) values for labeling
-srhs_dt[, ecdf_y := ecdf(overall_inc_gains_change_povline)(overall_inc_gains_change_povline)]
+# tex_dt <- as.data.table(tex_dt)
 
-# Create formatted labels: "Country Name (Gain)"
-srhs_dt[, label := paste0(WB_NAME, " (", round(overall_inc_gains_change_povline, 4), ")")]
+# # setnames(tex_dt,
+# #          c("Income.Gains....of.1.90.USD.extreme.poverty.line.",
+# #            "Country.Code"),
+# #          c("income_gains", "code"))
 
-# Plot ECDF with correctly positioned labels
-p <- ggplot(srhs_dt, aes(x = overall_inc_gains_change_povline)) +
-  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Proper ECDF calculation
-  geom_point(aes(y = after_stat(y)), stat = "ecdf", color = "red", size = 2) +  # Add points on ECDF
-  geom_text_repel(data = srhs_dt, aes(y = ecdf_y, label = label),  # Use precomputed ECDF values
-                  size = 3,
-                  nudge_y = 0.05,
-                  direction = "y",
-                  force = 5,
-                  box.padding = 0.6,
-                  point.padding = 0.3,
-                  segment.color = NA) +  # Remove arrows
-  scale_x_continuous(labels = scales::comma) +  # Standard x-axis tick labels
-  labs(title = "Cumulative Distribution of Income Gains",
-       x = "Income Gains Change (Pov Line)",
-       y = "Empirical Cumulative Probability") +
-  theme_minimal()
+# tex_dt <- tex_dt[, 2:4]
 
-# Save the plot as a PNG
-ggsave(filename = "cumulative_income_gains.png",
-       plot = p,
-       width = 10,
-       height = 6,
-       dpi = 300)
+# colnames(tex_dt) <- c("Country", "ISO-3 Code", "Gains (%)")
+
+# latex_table <- xtable(tex_dt,
+#                       caption = "% Income Gains Per Capita of 1.90 USD International Poverty Line (SD Model)")
+
+# # writeLines(
+# #   xtable::xtable(latex_table, caption = "Percentage Income Gains Per Capita of International Poverty Line"),
+# #   "output/tables/simulation/incomegains_percapita.tex"
+# # )
+
+
+# # Create LaTeX table object
+# # Save LaTeX table to a .tex file
+# sink("output/tables/simulation/incomegains_percapita_SD.tex")
+# print(latex_table, caption.placement = "top")
+# sink()
+
+
+
+
+# #### draw historgram
+
+# # Sort by income gains
+# srhs_dt <- srhs_dt[order(overall_inc_gains_change_povline)]
+
+# # Compute ECDF manually to get proper (x, y) values for labeling
+# srhs_dt[, ecdf_y := ecdf(overall_inc_gains_change_povline)(overall_inc_gains_change_povline)]
+
+# # Create formatted labels: "Country Name (Gain)"
+# srhs_dt[, label := paste0(WB_NAME, " (", round(overall_inc_gains_change_povline, 4), ")")]
+
+# # Plot ECDF with correctly positioned labels
+# p <- ggplot(srhs_dt, aes(x = overall_inc_gains_change_povline)) +
+#   stat_ecdf(geom = "step", color = "blue", size = 1) +  # Proper ECDF calculation
+#   geom_point(aes(y = after_stat(y)), stat = "ecdf", color = "red", size = 2) +  # Add points on ECDF
+#   geom_text_repel(data = srhs_dt, aes(y = ecdf_y, label = label),  # Use precomputed ECDF values
+#                   size = 3,
+#                   nudge_y = 0.05,
+#                   direction = "y",
+#                   force = 5,
+#                   box.padding = 0.6,
+#                   point.padding = 0.3,
+#                   segment.color = NA) +  # Remove arrows
+#   scale_x_continuous(labels = scales::comma) +  # Standard x-axis tick labels
+#   labs(title = "Cumulative Distribution of Income Gains",
+#        x = "Income Gains Change (Pov Line)",
+#        y = "Empirical Cumulative Probability") +
+#   theme_minimal()
+
+# # Save the plot as a PNG
+# ggsave(filename = "cumulative_income_gains.png",
+#        plot = p,
+#        width = 10,
+#        height = 6,
+#        dpi = 300)
