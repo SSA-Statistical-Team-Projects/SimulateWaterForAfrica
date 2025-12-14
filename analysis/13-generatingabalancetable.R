@@ -38,7 +38,7 @@ balance_df <- crop_df %>%
                               "growp_long","no_of","grid_suit_o_vs_Ms_ms_index",#"annual_prec",
                               "crop_actual_","length_","har_tot","har_irri","har_rainfed","growing_",
                               "crop_yld_","prd_tot","temp","prec","pdsi","terrain_median",
-                              "crop_suit","multi_","mod_fo"))) 
+                              "crop_suit","multi_","mod_fo","mean_gwdepth_m"))) 
 
 balance_df <- balance_df %>%
   dplyr::select(-ends_with(c("cubed","_sq","_imp")))
@@ -85,6 +85,7 @@ balance_df1 <- balance_df1 %>%
                   "PDSI Winter" = pdsi_winter,
                   "PDSI Spring" = pdsi_spring,
                   "PDSI Summer" = pdsi_summer,
+                  "Mean Depth to Groundwater (m)" = mean_gwdepth_m,
                   "Terrain Median Slope" = terrain_median_slp,
                   "Modified Fournier Index (mm)" = mod_fournier_index_mm,
                   "Soil Suitability (Continuous Index)" = crop_suitability,

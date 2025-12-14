@@ -27,6 +27,9 @@ sim_df <- readRDS("data-clean/working_data/simulation_results_dataframe_allcons_
 
 crop_df <- readRDS("data-clean/working_data/gaez/gaez_crop_year_analysis_final.RDS")
 
+grid_dt <- sf::st_read(dsn = "data-clean/working_data/gaez/grid_polygon",
+                       layer = "unique_grid_polygons")
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Maps
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -39,12 +42,110 @@ sim_df <- left_join(sim_df,
                     by = "srno")
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Country Level Plot
+# Plots
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # By crop
 cereal_list <- c("mze","rcw","whe")
 cereal_name <- c("Maize","Rice","Wheat")
+
+# Distribution of gains
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+#### plotting the productivity gains 
+
+grid_dt <- left_join(grid_dt,
+                     sim_df %>%
+                       dplyr::select(c(srno,crop_code,cland_convert_prod_gain_1000tonne)),
+                     by = "srno")
+sfgains_dt <- 
+  grid_dt |>
+  mutate(
+    gains_indicator = case_when(
+      is.na(cland_convert_prod_gain_1000tonne) ~ "No Simulated Results",
+      cland_convert_prod_gain_1000tonne > 0 ~ "Gain",
+      cland_convert_prod_gain_1000tonne <= 0 ~ "No Gain"
+    )
+  ) |>
+  mutate(gains_indicator = factor(gains_indicator, levels = c("Gain", "No Gain", "No Simulated Results"))) |>
+  mutate(crop_name = case_when(
+    crop_code == "mze" ~ "Maize",
+    crop_code == "rcw" ~ "Rice",
+    crop_code == "whe" ~ "Wheat",
+    TRUE ~ NA_character_
+  )) |>
+  as_tibble() |>
+  st_as_sf(crs = 4326, agr = "constant")
+
+
+
+sfgains_plot <- 
+  sfgains_dt |>
+  ggplot() +
+  geom_sf(aes(fill = gains_indicator), color = NA) +
+  scale_fill_manual(values = c("Gain" = "#228B22", 
+                               "No Gain" = "#800000", 
+                               "No Simulated Results" = "gray88"),
+                    na.value = "white") +
+  facet_wrap(~crop_name, nrow = 1) +
+  labs(x = "", y = "") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        #legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_blank(),
+        plot.title = element_text(hjust = 0.5,
+                                  size = 18)) +
+    coord_sf(crs = st_crs(4326),ylim = c(-36,28))
+
+for (crop in cereal_list[cereal_list %in% c("mze", "whe", "rcw")]) {
+  
+  k = which(cereal_list == crop)
+  crop_name = cereal_name[k]
+  
+  # Plot the distribution of crop harvest on the map for each crop
+  p <- ggplot() +
+    geom_sf(data = sfgains_dt,
+            aes(fill = gains_indicator),
+            color = NA) +
+    scale_fill_manual(values = c("Gain" = "#228B22", 
+                                 "No Gain" = "#800000", 
+                                 "No Simulated Results" = "gray88"),
+                      na.value = "white") +
+    labs(x = "",
+         y = "") +
+    ggtitle(paste(crop_name)) +
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          #legend.position = "none",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.text = element_blank(),
+          plot.title = element_text(hjust = 0.5,
+                                    size = 18)) +
+    coord_sf(crs = st_crs(4326),ylim = c(-36,28))
+  
+  # Save or print the plot for each crop
+  assign(paste0("plot.",crop),p)
+  
+  rm(p,crop_name,k,crop)
+}
+
+plot <- ggarrange(plot.mze,plot.rcw,plot.whe,
+                  nrow = 1,
+                  ncol = 3,
+                  common.legend = TRUE,
+                  legend = "bottom"
+)
+
+ggsave(filename = "output/graphs/production_gains_distribution.png",
+       plot = sfgains_plot,
+       width = 10, height = 8, dpi = 150, units = "in",
+       device = 'png')
+
+# Country Level Plot
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 country_crop_median_ci <- sim_df %>%
   dplyr::mutate(result_calculated = ifelse(!is.na(perc_gain_prod), 1, 0)) %>%

@@ -88,7 +88,7 @@ crop_df <- apply_labels(crop_df,
 
 
 est_df <- crop_df %>%
-  dplyr::filter(!is.na(any_irri) & har_tot > 0)
+  dplyr::filter(!is.na(any_irri) & har_tot > 0) #only keeping croplands
 
 est_df <- est_df %>%
   dplyr::mutate(ntl = ifelse(ntl < 0, 0,ntl),
@@ -124,50 +124,20 @@ selected_variable_names <- selected_variable_names[!grepl("^prec_", selected_var
 selected_variable_names <- selected_variable_names[!selected_variable_names %in% c("gaez_grid_area", "har_irri")]
 
 # using the list of variables selected through lasso
-varlist <- c(selected_variable_names,irri_minus_yld)
-yld_reg_vars <- setdiff(varlist,irri_minus_yld)
+varlist <- selected_variable_names
+yld_reg_vars <- varlist[!varlist %in% c("mean_gwdepth_m")]
 
-##### TEMPPPPPP
 for(crop in crop_list) {
   
   temp_df <- est_df %>%
     dplyr::filter(crop_code == crop) %>%
     dplyr::mutate(count_irri = ifelse(any(har_irri > 0),1,0),
-                  yld_irri = ifelse(is.na(har_irri) | har_irri == 0, 0,yld_irri),
-                  yld_rainfed = ifelse(is.na(har_rainfed) | har_rainfed == 0, 0,yld_rainfed))
+                  irri_intensity = ifelse(any_irri == 0,0,any_irri))
   
   # Remove observations with missing values for variables in varlist
   temp_df <- temp_df[complete.cases(temp_df[, varlist]), ]
   
   count_irri = temp_df$count_irri[1]
-  
-  # Since est_df has the subset of croplands which grow a certain crop, there will be some states with no observations for a certain crop
-  if(dim(temp_df)[1] <= 40 | count_irri != 1) {
-    next
-  }
-  
-  
-  # ### Check
-  #
-  # m.rainfed     <- heckit(as.formula(paste("any_irri ~ -1 + ",
-  #                                          paste(
-  #                                            paste(varlist,
-  #                                                  collapse = " + ")
-  #                                          ),
-  #                                          " + as.character(WB_NAME)"
-  # )
-  # ),
-  # as.formula(
-  #   paste("yld_rainfed ~ -1 + ",
-  #         paste(
-  #           paste(yld_reg_vars,
-  #                 collapse = " + ")
-  #         ),
-  #         " + as.character(WB_NAME)"
-  #   )
-  # ),
-  # data = temp_df %>%
-  #   dplyr::mutate(yld_rainfed = ifelse(any_irri == 1, 0,yld_rainfed)))
   
   myprobit    <- probit(as.formula(
     paste("any_irri ~ -1 + ",
@@ -176,7 +146,6 @@ for(crop in crop_list) {
                   collapse = " + ")
           ),
           "  "
-          #" + as.character(WB_NAME) "
     )
   ) ,
   x = TRUE,
@@ -192,7 +161,7 @@ for(crop in crop_list) {
             paste(yld_reg_vars,
                   collapse = " + ")
           ),
-          " + IMR1 " #+ as.character(WB_NAME)"
+          " + IMR1 " 
     )
   ),
   data = temp_df,
@@ -204,7 +173,7 @@ for(crop in crop_list) {
             paste(yld_reg_vars,
                   collapse = " + ")
           ),
-          " + IMR1 " #+ as.character(WB_NAME)"
+          " + IMR1 " 
     )
   ),
   data = temp_df,
@@ -214,8 +183,6 @@ for(crop in crop_list) {
   assign(paste0("mf.",crop),myprobit)
   assign(paste0("mi.",crop),m.irri)
   assign(paste0("mr.",crop),m.rainfed)
-  
-  
   
   ### saving results
   
@@ -249,15 +216,16 @@ for(crop in crop_list) {
                3))
   
   assign(paste0("mean_anyirri_",crop), 
-         round(mean(temp_df$any_irri,3)))
+         round(mean(temp_df$any_irri,na.rm = TRUE),3))
   
-  #temp_df$predicted_yld_diff <- m.irri$fitted.values - m.rainfed$fitted.values
   if(crop == crop_list[1]) {
     results_df <- new_temp_df %>%
       dplyr::select(pred_yld_rainfed,pred_yld_irri, WB_NAME,srno,crop_code,a1_id)
-  } else {new_temp_df <- new_temp_df %>%
-    dplyr::select(pred_yld_rainfed,pred_yld_irri, WB_NAME,srno, crop_code,a1_id)
-  results_df <- bind_rows(results_df,
+  } else {
+    new_temp_df <- new_temp_df %>%
+      dplyr::select(pred_yld_rainfed,pred_yld_irri, WB_NAME,srno, crop_code,a1_id)
+  
+    results_df <- bind_rows(results_df,
                           new_temp_df)
   }
   rm(m.rainfed,m.irri,temp_df,new_temp_df,myprobit)
@@ -306,11 +274,6 @@ rm(results_df)
 ## Exporting tables
 
 v.whe <- names(mi.whe$coefficients)
-#v.whe <- v.whe[1:67]
-# v.rcw <- names(mi.rcw$coefficients)
-# v.rcw <- v.rcw[1:67]
-# v.mze <- names(mi.mze$coefficients)
-# v.mze <- v.mze[1:67]
 
 main.vars.order <- v.whe
 
@@ -321,15 +284,17 @@ lab <- c("Harvest Area (1000 Ha)",
          "Length of Growing Cycle (Days)",
          "Growing Cycle: Accumulated Temp (C / Day)",
          "Soil Suitability (Continuous Index)",
-         "Mean Depth to Groundwater (mm)",
          "Temp Winter Squared", 
          "PDSI Winter Squared", 
          "Temp Fall Squared",
          "PDSI Fall Squared", 
+         "Temp Spring Squared",
          "PDSI Spring Squared",
          "Temp Summer Squared",
          "PDSI Summer Squared",
+         "Temp Winter",
          "PDSI Winter",
+         "Temp Spring",
          "PDSI Spring",
          "Temp Fall", 
          "PDSI Fall",
@@ -348,7 +313,7 @@ fs.lab <- c("Harvest Area (1000 Ha)",
             "Length of Growing Cycle (Days)",
             "Growing Cycle: Accumulated Temp (C / Day)",
             "Soil Suitability (Continuous Index)",
-            "Mean Depth to Groundwater (mm)",
+            "Mean Depth to Groundwater (m)",
             "Temp Winter Squared", 
             "PDSI Winter Squared", 
             "Temp Fall Squared",
@@ -379,7 +344,7 @@ t.isrhs <- stargazer(mi.mze,mi.rcw,mi.whe,
                      model.numbers = TRUE,
                      star.cutoffs = c(0.1,0.05,0.01),
                      align = TRUE,
-                     add.lines = list(c("Country Controls","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}")),
+                     add.lines = list(c("Outcome Mean",paste0("\\multicolumn{1}{c}{",mean_mze_i,"}"),paste0("\\multicolumn{1}{c}{",mean_rcw_i,"}"),paste0("\\multicolumn{1}{c}{",mean_whe_i,"}"))),
                      table.placement = "H",
                      order = paste0("^",main.vars.order,"$"),
                      keep = main.vars.order,
@@ -398,7 +363,7 @@ t.rsrhs <- stargazer(mr.mze,mr.rcw,mr.whe,
                      model.numbers = TRUE,
                      star.cutoffs = c(0.1,0.05,0.01),
                      align = TRUE,
-                     add.lines = list(c("Country Controls","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}")),
+                     add.lines = list(c("Outcome Mean",paste0("\\multicolumn{1}{c}{",mean_mze_r,"}"),paste0("\\multicolumn{1}{c}{",mean_rcw_r,"}"),paste0("\\multicolumn{1}{c}{",mean_whe_r,"}"))),
                      table.placement = "H",
                      order = paste0("^",main.vars.order,"$"),
                      keep = main.vars.order,
@@ -432,7 +397,7 @@ for(typ in c("i","r")) {
           "\\scriptsize",
           paste0("\\item Notes. Estimates are from the Structural Ricardian Model with Heckman Selection. The dependent variable is the crop yield in a given GAEZ grid. Each column represents the results for each crop: namely, maize, rice, and wheat. Estimations were conducted after subsetting the dataset to include ",
                  exp,
-                 " The outcome mean is presented at the bottom; however, it is worth noting that since this is a selection model zeros were assigned to the yield when the crop was grown (i.e. harvest area of the crop exceeded zero) but the yields were not reported. *p$<$0.1 **p$<$0.05 ***p$<$0.01."),
+                 " The outcome mean is presented at the bottom. *p$<$0.1 **p$<$0.05 ***p$<$0.01."),
           "\\end{tablenotes}",
           "\\end{ThreePartTable}"
   )
@@ -458,7 +423,7 @@ tf <- stargazer(mf.mze,mf.rcw,mf.whe,
                 model.numbers = TRUE,
                 star.cutoffs = c(0.1,0.05,0.01),
                 align = TRUE,
-                add.lines = list(c("Country Controls","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}","\\multicolumn{1}{c}{Yes}")),
+                add.lines = list(c("Outcome Mean",paste0("\\multicolumn{1}{c}{",mean_anyirri_mze,"}"),paste0("\\multicolumn{1}{c}{",mean_anyirri_rcw,"}"),paste0("\\multicolumn{1}{c}{",mean_anyirri_whe,"}"))),
                 table.placement = "H",
                 order = paste0("^",fs.vars.order,"$"),
                 keep = fs.vars.order, 
