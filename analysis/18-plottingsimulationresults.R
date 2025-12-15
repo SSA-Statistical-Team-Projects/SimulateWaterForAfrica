@@ -52,8 +52,6 @@ cereal_name <- c("Maize","Rice","Wheat")
 # Distribution of gains
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-#### plotting the productivity gains 
-
 grid_dt <- left_join(grid_dt,
                      sim_df %>%
                        dplyr::select(c(srno,crop_code,cland_convert_prod_gain_1000tonne)),
@@ -77,8 +75,6 @@ sfgains_dt <-
   as_tibble() |>
   st_as_sf(crs = 4326, agr = "constant")
 
-
-
 sfgains_plot <- 
   sfgains_dt |>
   ggplot() +
@@ -91,57 +87,19 @@ sfgains_plot <-
   labs(x = "", y = "") +
   theme_minimal() +
   theme(legend.title = element_blank(),
-        #legend.position = "none",
+        legend.position = "bottom",
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.text = element_blank(),
         plot.title = element_text(hjust = 0.5,
                                   size = 18)) +
-    coord_sf(crs = st_crs(4326),ylim = c(-36,28))
-
-for (crop in cereal_list[cereal_list %in% c("mze", "whe", "rcw")]) {
-  
-  k = which(cereal_list == crop)
-  crop_name = cereal_name[k]
-  
-  # Plot the distribution of crop harvest on the map for each crop
-  p <- ggplot() +
-    geom_sf(data = sfgains_dt,
-            aes(fill = gains_indicator),
-            color = NA) +
-    scale_fill_manual(values = c("Gain" = "#228B22", 
-                                 "No Gain" = "#800000", 
-                                 "No Simulated Results" = "gray88"),
-                      na.value = "white") +
-    labs(x = "",
-         y = "") +
-    ggtitle(paste(crop_name)) +
-    theme_minimal() +
-    theme(legend.title = element_blank(),
-          #legend.position = "none",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.text = element_blank(),
-          plot.title = element_text(hjust = 0.5,
-                                    size = 18)) +
-    coord_sf(crs = st_crs(4326),ylim = c(-36,28))
-  
-  # Save or print the plot for each crop
-  assign(paste0("plot.",crop),p)
-  
-  rm(p,crop_name,k,crop)
-}
-
-plot <- ggarrange(plot.mze,plot.rcw,plot.whe,
-                  nrow = 1,
-                  ncol = 3,
-                  common.legend = TRUE,
-                  legend = "bottom"
-)
+    coord_sf(crs = st_crs(4326),
+             ylim = c(-36,28),
+             xlim= c(-20,55))
 
 ggsave(filename = "output/graphs/production_gains_distribution.png",
        plot = sfgains_plot,
-       width = 10, height = 8, dpi = 150, units = "in",
+       width = 10, height = 4, dpi = 150, units = "in",
        device = 'png')
 
 # Country Level Plot
